@@ -1,0 +1,3125 @@
+<title>Hariomm_Split_expense</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* ============================================================
+   Split Ledger — tokens
+   Identity: ink-on-ledger. Blue-slate neutrals, navy ink accent,
+   tabular mono figures, hairline bill rules.
+   ============================================================ */
+:root {
+  --page:        #eef0f4;
+  --surface:     #ffffff;
+  --surface-2:   #f6f7fa;
+  --surface-3:   #eaedf3;
+  --border:      #dde1e9;
+  --border-firm: #c6ccd9;
+  --ink:         #141822;
+  --ink-2:       #4c5464;
+  --muted:       #7b8497;
+  --accent:      #1b4fa0;
+  --accent-ink:  #ffffff;
+  --accent-soft: #e6edfa;
+  --accent-line: #b9cdf0;
+  --pos:         #0f7a2e;   /* you get back */
+  --neg:         #c0392f;   /* you owe */
+  --pos-soft:    #e4f4e8;
+  --neg-soft:    #fbe9e7;
+  --gold:        #9a6a06;
+
+  --series:      #1b4fa0;
+  --series-soft: #cfdcf3;
+  --div-pos:     #1b4fa0;
+  --div-neg:     #c0392f;
+  --grid:        #e3e6ed;
+  --axis:        #c6ccd9;
+
+  --shadow-sm: 0 1px 2px rgba(20,24,34,.06);
+  --shadow-md: 0 6px 24px -8px rgba(20,24,34,.22), 0 1px 2px rgba(20,24,34,.06);
+  --shadow-lg: 0 24px 64px -20px rgba(20,24,34,.42);
+
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px;
+  --font-display: "Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page:        #0b0d12;
+    --surface:     #161a21;
+    --surface-2:   #1c212a;
+    --surface-3:   #232935;
+    --border:      #2a3140;
+    --border-firm: #3a4354;
+    --ink:         #edf0f6;
+    --ink-2:       #b2bac9;
+    --muted:       #838c9e;
+    --accent:      #6ba4ec;
+    --accent-ink:  #0b0d12;
+    --accent-soft: #18263c;
+    --accent-line: #2d4568;
+    --pos:         #3fbf63;
+    --neg:         #ef6a5c;
+    --pos-soft:    #14301c;
+    --neg-soft:    #35191a;
+    --gold:        #d9a441;
+    --series:      #5a9ae8;
+    --series-soft: #24344f;
+    --div-pos:     #5a9ae8;
+    --div-neg:     #ef6a5c;
+    --grid:        #242a35;
+    --axis:        #3a4354;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-md: 0 6px 24px -8px rgba(0,0,0,.6), 0 1px 2px rgba(0,0,0,.4);
+    --shadow-lg: 0 24px 64px -20px rgba(0,0,0,.75);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page:        #0b0d12;
+  --surface:     #161a21;
+  --surface-2:   #1c212a;
+  --surface-3:   #232935;
+  --border:      #2a3140;
+  --border-firm: #3a4354;
+  --ink:         #edf0f6;
+  --ink-2:       #b2bac9;
+  --muted:       #838c9e;
+  --accent:      #6ba4ec;
+  --accent-ink:  #0b0d12;
+  --accent-soft: #18263c;
+  --accent-line: #2d4568;
+  --pos:         #3fbf63;
+  --neg:         #ef6a5c;
+  --pos-soft:    #14301c;
+  --neg-soft:    #35191a;
+  --gold:        #d9a441;
+  --series:      #5a9ae8;
+  --series-soft: #24344f;
+  --div-pos:     #5a9ae8;
+  --div-neg:     #ef6a5c;
+  --grid:        #242a35;
+  --axis:        #3a4354;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 6px 24px -8px rgba(0,0,0,.6), 0 1px 2px rgba(0,0,0,.4);
+  --shadow-lg: 0 24px 64px -20px rgba(0,0,0,.75);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+/* A class that sets `display` outbids the UA sheet's [hidden] rule, and the
+   phone build supplies its own <head> with no reset. Without this the hidden
+   lock overlay still swallows every tap. */
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.vh { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+
+/* ---------- shell ---------- */
+.shell { display: grid; grid-template-columns: 272px 1fr; min-height: 100vh; }
+.rail {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh;
+}
+.brand { padding: 18px 18px 14px; border-bottom: 1px solid var(--border); }
+.brand h1 {
+  font-family: var(--font-display); font-weight: 700; font-size: 19px;
+  margin: 0; letter-spacing: -.02em; display: flex; align-items: center; gap: 9px;
+}
+.brand .mark {
+  width: 22px; height: 22px; border-radius: 5px; background: var(--accent);
+  display: grid; place-items: center; flex: none;
+}
+.brand .mark svg { display: block; }
+.brand p { margin: 4px 0 0 31px; font-size: 12px; color: var(--muted); }
+
+.rail-scroll { flex: 1; overflow-y: auto; padding: 12px 10px; }
+.rail-label {
+  font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; padding: 6px 8px; display: flex;
+  justify-content: space-between; align-items: center;
+}
+.glist { display: flex; flex-direction: column; gap: 2px; }
+.gitem-row { display: flex; align-items: center; border-radius: var(--r-md); }
+.gitem-row:hover { background: var(--surface-2); }
+.gitem-row.active { background: var(--accent-soft); }
+.gitem {
+  flex: 1; min-width: 0; text-align: left; background: none; border: 0;
+  padding: 9px 4px 9px 10px; border-radius: var(--r-md);
+  display: flex; align-items: baseline; gap: 10px;
+}
+.gitem .gn { flex: 1; font-weight: 500; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gitem-row.active .gn { color: var(--accent); font-weight: 600; }
+.gitem .gb { font-size: 12px; }
+.gdel {
+  border: 0; background: none; color: var(--muted); padding: 7px 9px; margin-right: 2px;
+  border-radius: var(--r-sm); display: grid; place-items: center; opacity: .5;
+}
+.gdel:hover { color: var(--neg); background: var(--neg-soft); opacity: 1; }
+.gitem-row.active .gdel { opacity: .8; }
+.rail-foot { padding: 10px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+
+/* ---------- main ---------- */
+.main { min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 16px 24px 0; position: sticky; top: 0; z-index: 20;
+}
+.topbar-row { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.gtitle { min-width: 0; flex: 1; }
+.gtitle h2 {
+  font-family: var(--font-display); font-size: clamp(20px, 3vw, 27px); font-weight: 700;
+  margin: 0; letter-spacing: -.025em; text-wrap: balance;
+}
+.gtitle .sub { font-size: 13px; color: var(--muted); margin-top: 2px; display:flex; gap:10px; flex-wrap:wrap; }
+.topbar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.tabs { display: flex; gap: 2px; margin-top: 14px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  background: none; border: 0; padding: 9px 13px 11px; font-size: 14px; font-weight: 500;
+  color: var(--ink-2); border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab .cnt { font-size: 11px; color: var(--muted); margin-left: 5px; font-family: var(--font-mono); }
+
+.content { padding: 22px 24px 60px; flex: 1; }
+.wrap { max-width: 1060px; margin: 0 auto; }
+
+/* ---------- buttons ---------- */
+.btn {
+  border: 1px solid var(--border-firm); background: var(--surface); color: var(--ink);
+  padding: 7px 13px; border-radius: var(--r-md); font-size: 13.5px; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 7px; box-shadow: var(--shadow-sm);
+  transition: background .12s, border-color .12s;
+}
+.btn:hover { background: var(--surface-2); border-color: var(--muted); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { background: var(--accent); filter: brightness(1.08); border-color: var(--accent); }
+.btn-ghost { border-color: transparent; box-shadow: none; background: none; color: var(--ink-2); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
+.btn-sm { padding: 5px 10px; font-size: 12.5px; }
+.btn-danger { color: var(--neg); border-color: var(--border); }
+.btn-danger:hover { background: var(--neg-soft); border-color: var(--neg); }
+.btn-destructive { background: var(--neg); border-color: var(--neg); color: var(--accent-ink); font-weight: 600; }
+.btn-destructive:hover { background: var(--neg); border-color: var(--neg); filter: brightness(1.08); }
+.confirm-text { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--ink-2); white-space: pre-line; }
+.confirm-text strong { color: var(--ink); }
+.btn[disabled] { opacity: .45; pointer-events: none; }
+.icon { width: 15px; height: 15px; flex: none; }
+
+/* ---------- cards / ledger ---------- */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
+}
+.card-hd {
+  padding: 14px 18px; display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.card-hd h3 {
+  margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-2); flex: 1;
+}
+.card-bd { padding: 6px 18px 14px; }
+.stack { display: flex; flex-direction: column; gap: 18px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+
+/* hero balance strip */
+.hero {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 18px 20px; display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-end;
+  box-shadow: var(--shadow-sm);
+}
+.hero-main { flex: 1; min-width: 220px; }
+.hero-label { font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; font-weight: 600; }
+.hero-figure {
+  font-family: var(--font-mono); font-weight: 600; font-size: clamp(30px, 5.4vw, 42px);
+  letter-spacing: -.03em; line-height: 1.1; margin-top: 4px;
+}
+.hero-note { font-size: 13.5px; color: var(--ink-2); margin-top: 3px; }
+.hero-stats { display: flex; gap: 22px; flex-wrap: wrap; }
+.hstat .k { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.hstat .v { font-family: var(--font-mono); font-size: 17px; font-weight: 500; margin-top: 2px; }
+.pos { color: var(--pos); }
+.neg { color: var(--neg); }
+.zero { color: var(--muted); }
+
+/* ledger rows — the bill-rule device */
+.ledger { display: flex; flex-direction: column; }
+.lrow {
+  display: flex; align-items: center; gap: 12px; padding: 11px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.lrow:last-child { border-bottom: 0; }
+.lrow .who { font-weight: 500; }
+.lrow .rule { flex: 1; border-bottom: 1px dotted var(--border-firm); height: 1px; min-width: 14px; opacity: .8; }
+.lrow .amt { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 500; }
+.lrow .tag { font-size: 12px; color: var(--muted); }
+
+.avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex: none; display: grid; place-items: center;
+  font-size: 12px; font-weight: 600; background: var(--surface-3); color: var(--ink-2);
+  border: 1px solid var(--border);
+}
+.avatar.me { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+
+/* expense rows */
+.erow {
+  display: flex; align-items: center; gap: 13px; padding: 12px 6px 12px 2px;
+  border-bottom: 1px solid var(--border); width: 100%; text-align: left;
+  background: none; border-left: 0; border-right: 0; border-top: 0; border-radius: 0;
+}
+.erow:last-child { border-bottom: 0; }
+.erow:hover { background: var(--surface-2); }
+.edate {
+  width: 44px; flex: none; text-align: center; font-family: var(--font-mono);
+  line-height: 1.15; color: var(--muted);
+}
+.edate .d { font-size: 16px; font-weight: 600; color: var(--ink-2); display: block; }
+.edate .m { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.ebody { flex: 1; min-width: 0; }
+.ebody .t { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ebody .s { font-size: 12.5px; color: var(--muted); margin-top: 1px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.eamt { text-align: right; flex: none; }
+.eamt .total { font-family: var(--font-mono); font-weight: 500; }
+.eamt .yours { font-size: 12px; margin-top: 1px; font-family: var(--font-mono); }
+.pill {
+  font-size: 11px; padding: 1.5px 7px; border-radius: 999px; border: 1px solid var(--border);
+  color: var(--muted); background: var(--surface-2); white-space: nowrap;
+}
+.pill.settle { border-color: var(--pos); color: var(--pos); background: var(--pos-soft); }
+
+/* filters */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field label { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+input[type="text"], input[type="number"], input[type="date"], select, textarea {
+  background: var(--surface); border: 1px solid var(--border-firm); border-radius: var(--r-md);
+  padding: 8px 10px; font-size: 14px; width: 100%; min-width: 0;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+input.err { border-color: var(--neg); }
+.search { position: relative; flex: 1; min-width: 170px; }
+.search input { padding-left: 32px; }
+.search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+
+/* segmented */
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 2px; gap: 2px; flex-wrap: wrap; }
+.seg button {
+  border: 0; background: none; padding: 6px 11px; border-radius: 7px; font-size: 13px;
+  color: var(--ink-2); font-weight: 500;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); font-weight: 600; }
+
+/* empty */
+.empty { text-align: center; padding: 44px 20px; color: var(--muted); }
+.empty h4 { font-family: var(--font-display); font-size: 18px; color: var(--ink); margin: 0 0 6px; }
+.empty p { margin: 0 auto 16px; max-width: 40ch; font-size: 14px; }
+
+/* banner */
+.banner {
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; color: var(--ink-2);
+  margin-bottom: 16px;
+}
+.banner.warn { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 10%, var(--surface)); }
+
+/* settle-up */
+.settle-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 0;
+  border-bottom: 1px dashed var(--border); flex-wrap: wrap;
+}
+.settle-row:last-child { border-bottom: 0; }
+.flow { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 200px; }
+.flow .arrow { color: var(--muted); }
+.flow .nm { font-weight: 500; }
+
+/* charts */
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.chart-wrap { position: relative; }
+.chart-wrap svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tip {
+  position: fixed; pointer-events: none; z-index: 400; background: var(--surface);
+  border: 1px solid var(--border-firm); border-radius: var(--r-sm); padding: 7px 10px;
+  box-shadow: var(--shadow-md); font-size: 12.5px; opacity: 0; transition: opacity .1s;
+  max-width: 230px;
+}
+.tip .tk { color: var(--muted); }
+.tip .tv { font-family: var(--font-mono); font-weight: 600; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding: 7px 8px; border-bottom: 1px solid var(--border); font-weight: 600; }
+.tbl td { padding: 8px; border-bottom: 1px solid var(--border); }
+.tbl td.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.tbl tr:last-child td { border-bottom: 0; }
+.scrollx { overflow-x: auto; }
+
+/* modal */
+.scrim {
+  position: fixed; inset: 0; background: rgba(10,13,20,.55); backdrop-filter: blur(2px);
+  display: grid; place-items: center; padding: 16px; z-index: 300;
+}
+.modal {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg); width: min(620px, 100%); max-height: min(90vh, 900px);
+  display: flex; flex-direction: column;
+}
+.modal-hd { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+.modal-hd h3 { font-family: var(--font-display); font-size: 18px; margin: 0; flex: 1; letter-spacing: -.02em; }
+.modal-bd { padding: 18px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.modal-ft { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 9px; justify-content: flex-end; flex-wrap: wrap; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hint { font-size: 12px; color: var(--muted); }
+
+/* split editor */
+.split-list { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.split-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 11px;
+  border-bottom: 1px solid var(--border);
+}
+.split-row:last-child { border-bottom: 0; }
+.split-row.off { opacity: .45; }
+.split-row .nm { flex: 1; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.split-row input[type="number"] { width: 96px; text-align: right; padding: 5px 8px; font-family: var(--font-mono); }
+.split-row .calc { font-family: var(--font-mono); font-size: 13px; color: var(--ink-2); width: 88px; text-align: right; }
+.split-foot {
+  display: flex; justify-content: space-between; padding: 9px 11px; font-size: 13px;
+  background: var(--surface-2); border-top: 1px solid var(--border);
+}
+.split-foot .bad { color: var(--neg); font-weight: 600; }
+.split-foot .ok { color: var(--pos); font-weight: 600; }
+.chk { width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+
+.memberchips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: 13px;
+}
+.chip button { border: 0; background: none; color: var(--muted); padding: 0 2px; line-height: 1; font-size: 15px; }
+.chip button:hover { color: var(--neg); }
+
+.toast {
+  position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 12px);
+  background: var(--ink); color: var(--page); padding: 9px 16px; border-radius: 999px;
+  font-size: 13.5px; font-weight: 500; z-index: 500; opacity: 0; transition: all .18s;
+  box-shadow: var(--shadow-md); pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.railbtn { display: none; }
+
+/* ---------- passcode lock ---------- */
+.lock {
+  position: fixed; inset: 0; z-index: 600; background: var(--page);
+  display: grid; place-items: center; padding: 24px 16px;
+  padding-top: calc(24px + env(safe-area-inset-top));
+}
+.lock-card { width: min(360px, 100%); text-align: center; }
+.lock-mark {
+  width: 52px; height: 52px; border-radius: 14px; background: var(--accent);
+  display: grid; place-items: center; margin: 0 auto 18px;
+}
+.lock-card h2 {
+  font-family: var(--font-display); font-size: 22px; font-weight: 700;
+  margin: 0 0 6px; letter-spacing: -.02em; text-wrap: balance;
+}
+.lock-sub { font-size: 14px; color: var(--ink-2); margin: 0 0 22px; line-height: 1.5; }
+.pin { display: flex; gap: 10px; justify-content: center; margin-bottom: 14px; }
+.pin input {
+  width: 54px; height: 62px; text-align: center; font-family: var(--font-mono);
+  font-size: 26px; font-weight: 600; padding: 0; border-radius: 12px;
+  border: 1.5px solid var(--border-firm); background: var(--surface); color: var(--ink);
+  -moz-appearance: textfield;
+}
+.pin input::-webkit-outer-spin-button, .pin input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.pin input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+.pin input.filled { border-color: var(--accent); background: var(--accent-soft); }
+.pin.bad input { border-color: var(--neg); background: var(--neg-soft); }
+.pin.bad { animation: shake .3s; }
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-7px); }
+  75% { transform: translateX(7px); }
+}
+.lock-err { min-height: 20px; font-size: 13.5px; color: var(--neg); font-weight: 500; margin-bottom: 12px; }
+.lock-actions { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.lock-actions .btn { width: 100%; justify-content: center; padding: 11px; }
+.lock-link {
+  background: none; border: 0; color: var(--ink-2); font-size: 13px;
+  text-decoration: underline; text-underline-offset: 3px; padding: 6px;
+}
+.lock-link:hover { color: var(--accent); }
+.lock-note { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-top: 4px; }
+
+.auth-card { width: min(420px, 100%); }
+.auth-card .field label { font-size: 12.5px; }
+.phonerow { display: flex; gap: 8px; }
+.phonerow select { width: 108px; flex: none; font-family: var(--font-mono); }
+.phonerow input { flex: 1; min-width: 0; font-family: var(--font-mono); letter-spacing: .02em; }
+
+/* sync status */
+.syncdot {
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--muted); display: inline-block;
+}
+.syncdot.ok { background: var(--pos); }
+.syncdot.busy { background: var(--gold); animation: pulse 1s infinite; }
+.syncdot.err { background: var(--neg); }
+.syncdot.off { background: var(--border-firm); }
+@keyframes pulse { 50% { opacity: .35; } }
+.syncbar {
+  display: flex; align-items: center; gap: 8px; font-size: 12px;
+  color: var(--muted); padding: 7px 10px 0;
+}
+.syncbar button { font-size: 12px; }
+.memberline { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--border); }
+.memberline:last-child { border-bottom: 0; }
+.memberline .mi { flex: 1; min-width: 0; }
+.memberline .mi .nm { font-weight: 500; font-size: 14px; }
+.memberline .mi .ph { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+.tagme { font-size: 11px; color: var(--accent); font-weight: 600; }
+
+/* contact picker */
+.memberrow { display: flex; gap: 8px; align-items: stretch; }
+.memberrow input { flex: 1; min-width: 0; }
+.chip .ph { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+.chip-col { display: flex; flex-direction: column; line-height: 1.25; text-align: left; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .cols, .chart-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 780px) {
+  .shell { grid-template-columns: 1fr; }
+  .rail {
+    position: fixed; inset: 0 auto 0 0; width: 268px; z-index: 250; height: 100vh;
+    transform: translateX(-101%); transition: transform .2s ease; box-shadow: var(--shadow-lg);
+  }
+  .rail.open { transform: none; }
+  .railbtn { display: inline-flex; }
+  .topbar { padding: 12px 16px 0; }
+  .content { padding: 16px 16px 70px; }
+  .grid2 { grid-template-columns: 1fr; }
+  .lrow { gap: 8px; }
+  .lrow .rule { min-width: 0; }
+  .lrow .amt, .lrow .tag { white-space: nowrap; }
+  .settle-row { gap: 8px 10px; }
+  .settle-row .flow { flex: 1 0 100%; min-width: 0; }
+  .settle-row .mono { margin-left: auto; }
+  .hero { padding: 15px 16px; gap: 16px; }
+  .hero-stats { gap: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="shell">
+  <aside class="rail" id="rail">
+    <div class="brand">
+      <h1>
+        <span class="mark" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round">
+            <path d="M3 4h10M3 8h10M3 12h6"/>
+          </svg>
+        </span>
+        Split Ledger
+      </h1>
+      <p>Shared expenses, settled fairly</p>
+    </div>
+    <div class="rail-scroll">
+      <div class="rail-label">
+        <span>Groups</span>
+        <span class="mono" id="groupCount"></span>
+      </div>
+      <div class="glist" id="groupList"></div>
+    </div>
+    <div class="syncbar" id="syncBar" hidden></div>
+    <div class="rail-foot">
+      <button class="btn btn-primary btn-sm" id="newGroupBtn" style="flex:1">
+        <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+        New group
+      </button>
+      <button class="btn btn-sm btn-ghost" id="lockBtn" title="Passcode" aria-label="Passcode settings" hidden>
+        <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="7" width="10" height="6.5" rx="1.6"/><path d="M5.4 7V4.9a2.6 2.6 0 0 1 5.2 0V7"/></svg>
+      </button>
+      <button class="btn btn-sm btn-ghost" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">
+        <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-row">
+        <button class="btn btn-sm railbtn" id="railBtn" aria-label="Show groups">
+          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>
+        </button>
+        <div class="gtitle">
+          <h2 id="groupName">Split Ledger</h2>
+          <div class="sub" id="groupSub"></div>
+        </div>
+        <div class="topbar-actions" id="topActions"></div>
+      </div>
+      <div class="tabs" id="tabs" role="tablist"></div>
+    </header>
+    <div class="content"><div class="wrap" id="view"></div></div>
+  </main>
+</div>
+
+<div class="lock" id="authScreen" hidden>
+  <div class="lock-card auth-card">
+    <div class="lock-mark" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round">
+        <path d="M3 4h10M3 8h10M3 12h6"/>
+      </svg>
+    </div>
+    <h2>Welcome to Split Ledger</h2>
+    <p class="lock-sub">Your mobile number is your account. It's how friends add you to a group, and how your groups follow you to a new phone.</p>
+    <div class="field" style="text-align:left">
+      <label for="authPhone">Mobile number</label>
+      <div class="phonerow">
+        <select id="authCC" aria-label="Country code"></select>
+        <input type="tel" id="authPhone" inputmode="numeric" autocomplete="tel-national" placeholder="98765 43210">
+      </div>
+    </div>
+    <div class="field" style="text-align:left; margin-top:12px">
+      <label for="authName">Your name</label>
+      <input type="text" id="authName" autocomplete="name" autocapitalize="words" placeholder="What your friends call you">
+    </div>
+    <div class="lock-err" id="authErr" role="alert"></div>
+    <div class="lock-actions">
+      <button class="btn btn-primary" id="authGo">Continue</button>
+      <button class="lock-link" id="authServer">Server settings</button>
+      <p class="lock-note" id="authNote"></p>
+    </div>
+  </div>
+</div>
+
+<div class="lock" id="lockScreen" hidden>
+  <div class="lock-card">
+    <div class="lock-mark" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="10.5" width="16" height="10.5" rx="2.5"/>
+        <path d="M8 10.5V7.2a4 4 0 0 1 8 0v3.3"/>
+      </svg>
+    </div>
+    <h2 id="lockTitle">Enter your passcode</h2>
+    <p class="lock-sub" id="lockSub"></p>
+    <div class="pin" id="pinBoxes"></div>
+    <div class="lock-err" id="lockErr" role="alert"></div>
+    <div class="lock-actions" id="lockActions"></div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+<div class="tip" id="tip" role="status"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+"use strict";
+
+/* ==========================================================
+   1. Utilities
+   ========================================================== */
+const $ = (s, r) => (r || document).querySelector(s);
+const el = (t, a, kids) => {
+  const n = document.createElement(t);
+  if (a) for (const k in a) {
+    if (k === "class") n.className = a[k];
+    else if (k === "html") n.innerHTML = a[k];
+    else if (k === "text") n.textContent = a[k];
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), a[k]);
+    else if (a[k] !== null && a[k] !== undefined && a[k] !== false) n.setAttribute(k, a[k]);
+  }
+  if (kids) (Array.isArray(kids) ? kids : [kids]).forEach(c => c && n.appendChild(c));
+  return n;
+};
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const uid = (p) => (p || "") + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3);
+const clone = o => JSON.parse(JSON.stringify(o));
+const nowISO = () => new Date().toISOString();
+const todayStr = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+
+const CURRENCIES = [
+  { code: "INR", label: "₹ Indian rupee", locale: "en-IN" },
+  { code: "USD", label: "$ US dollar", locale: "en-US" },
+  { code: "EUR", label: "€ Euro", locale: "de-DE" },
+  { code: "GBP", label: "£ Pound sterling", locale: "en-GB" },
+  { code: "AED", label: "د.إ UAE dirham", locale: "en-AE" },
+  { code: "SGD", label: "$ Singapore dollar", locale: "en-SG" },
+  { code: "AUD", label: "$ Australian dollar", locale: "en-AU" },
+  { code: "JPY", label: "¥ Japanese yen", locale: "ja-JP" }
+];
+const CATEGORIES = ["Food & drink", "Groceries", "Transport", "Stay", "Entertainment", "Shopping", "Utilities", "Rent", "Health", "Gifts", "Other"];
+const SPLIT_TYPES = [
+  { id: "equal", label: "Equally", hint: "Everyone selected owes the same share." },
+  { id: "exact", label: "Exact amounts", hint: "Type what each person owes. Must add up to the total." },
+  { id: "percentage", label: "Percentages", hint: "Type each share as a percentage. Must add up to 100%." },
+  { id: "shares", label: "Shares", hint: "Give each person a weight — 2 shares owe twice as much as 1." },
+  { id: "adjustment", label: "Adjustments", hint: "Charge someone extra for their own item; the rest is split equally." }
+];
+
+function locFor(code) { const c = CURRENCIES.find(x => x.code === code); return c ? c.locale : "en-US"; }
+function fmt(minor, code) {
+  code = code || (S.group && S.group.currency) || "INR";
+  try {
+    return new Intl.NumberFormat(locFor(code), { style: "currency", currency: code, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(minor / 100);
+  } catch (e) { return (minor / 100).toFixed(2) + " " + code; }
+}
+function fmtShort(minor, code) {
+  code = code || (S.group && S.group.currency) || "INR";
+  const v = Math.abs(minor) / 100;
+  let s;
+  if (v >= 1e7) s = (v / 1e7).toFixed(1) + "Cr";
+  else if (v >= 1e5) s = (v / 1e5).toFixed(1) + "L";
+  else if (v >= 1000) s = (v / 1000).toFixed(v >= 1e4 ? 0 : 1) + "k";
+  else s = v.toFixed(0);
+  let sym = "";
+  try { sym = (0).toLocaleString(locFor(code), { style: "currency", currency: code }).replace(/[\d.,\s]/g, ""); } catch (e) { sym = ""; }
+  return (minor < 0 ? "-" : "") + sym + s;
+}
+const toMinor = v => Math.round((Number(v) || 0) * 100);
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function dateParts(s) { const p = String(s || todayStr()).split("-"); return { d: p[2] || "01", m: MONTHS[(parseInt(p[1], 10) || 1) - 1], y: p[0] }; }
+function relTime(iso) {
+  if (!iso) return "";
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+  if (diff < 604800) return Math.floor(diff / 86400) + "d ago";
+  const d = new Date(iso); return d.getDate() + " " + MONTHS[d.getMonth()];
+}
+function initials(name) {
+  const p = String(name || "?").trim().split(/\s+/);
+  return ((p[0] || "")[0] || "?").toUpperCase() + (p.length > 1 ? (p[p.length - 1][0] || "").toUpperCase() : "");
+}
+
+/* ==========================================================
+   2. Money engine — all arithmetic in minor units (paise/cents)
+   ========================================================== */
+
+/** Spread `total` across `n` slots by weight, losing nothing to rounding. */
+function distribute(total, weights) {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  if (sum <= 0 || weights.length === 0) return weights.map(() => 0);
+  const neg = total < 0 ? -1 : 1;
+  const abs = Math.abs(total);
+  const raw = weights.map(w => (abs * w) / sum);
+  const base = raw.map(Math.floor);
+  let rem = abs - base.reduce((a, b) => a + b, 0);
+  const order = raw.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  for (let k = 0; k < order.length && rem > 0; k++, rem--) base[order[k][1]] += 1;
+  return base.map(v => v * neg);
+}
+
+/**
+ * Who owes what for one expense.
+ * amount: minor units. parts: [memberId]. values: {memberId: number}
+ * Returns {memberId: minorOwed}.
+ */
+function computeSplits(amount, type, parts, values) {
+  const out = {};
+  parts.forEach(p => (out[p] = 0));
+  if (!parts.length) return out;
+  values = values || {};
+
+  if (type === "equal") {
+    distribute(amount, parts.map(() => 1)).forEach((v, i) => (out[parts[i]] = v));
+  } else if (type === "exact") {
+    parts.forEach(p => (out[p] = toMinor(values[p])));
+  } else if (type === "percentage") {
+    const w = parts.map(p => Math.max(0, Number(values[p]) || 0));
+    distribute(amount, w).forEach((v, i) => (out[parts[i]] = v));
+  } else if (type === "shares") {
+    const w = parts.map(p => Math.max(0, Number(values[p]) || 0));
+    distribute(amount, w).forEach((v, i) => (out[parts[i]] = v));
+  } else if (type === "adjustment") {
+    // Each person may be charged an extra personal amount; the rest splits equally.
+    const adj = parts.map(p => toMinor(values[p]));
+    const adjSum = adj.reduce((a, b) => a + b, 0);
+    const rest = amount - adjSum;
+    const even = distribute(rest, parts.map(() => 1));
+    parts.forEach((p, i) => (out[p] = adj[i] + even[i]));
+  }
+  return out;
+}
+
+/** Total each member actually paid out of pocket for an expense. */
+function payersOf(e) {
+  if (e.payers && Object.keys(e.payers).length) return e.payers;
+  const o = {}; o[e.paidBy] = e.amount; return o;
+}
+
+/** Net position per member: positive = is owed money, negative = owes. */
+function netBalances(members, expenses, settlements) {
+  const net = {};
+  members.forEach(m => (net[m.id] = 0));
+  expenses.forEach(e => {
+    const pay = payersOf(e);
+    for (const id in pay) if (id in net) net[id] += pay[id];
+    for (const id in (e.splits || {})) if (id in net) net[id] -= e.splits[id];
+  });
+  settlements.forEach(s => {
+    if (s.from in net) net[s.from] += s.amount;
+    if (s.to in net) net[s.to] -= s.amount;
+  });
+  return net;
+}
+
+/** Raw pairwise debts: who owes whom, before simplification. */
+function pairwiseDebts(members, expenses, settlements) {
+  const m = {};
+  members.forEach(a => { m[a.id] = {}; members.forEach(b => { if (a.id !== b.id) m[a.id][b.id] = 0; }); });
+  expenses.forEach(e => {
+    const pay = payersOf(e);
+    const paidTotal = Object.values(pay).reduce((a, b) => a + b, 0);
+    if (paidTotal <= 0) return;
+    for (const debtor in (e.splits || {})) {
+      if (!(debtor in m)) continue;
+      const owed = e.splits[debtor];
+      if (owed <= 0) continue;
+      const creditors = Object.keys(pay).filter(c => c in m);
+      const weights = creditors.map(c => pay[c]);
+      distribute(owed, weights).forEach((part, i) => {
+        const cred = creditors[i];
+        if (cred === debtor || !part) return;
+        m[debtor][cred] += part;
+      });
+    }
+  });
+  settlements.forEach(s => {
+    if (m[s.from] && m[s.from][s.to] !== undefined) m[s.from][s.to] -= s.amount;
+  });
+  // net out reciprocal pairs
+  const out = [];
+  const seen = {};
+  members.forEach(a => members.forEach(b => {
+    if (a.id >= b.id) return;
+    const key = a.id + "|" + b.id;
+    if (seen[key]) return; seen[key] = 1;
+    const ab = (m[a.id] && m[a.id][b.id]) || 0;
+    const ba = (m[b.id] && m[b.id][a.id]) || 0;
+    const d = ab - ba;
+    if (d > 0) out.push({ from: a.id, to: b.id, amount: d });
+    else if (d < 0) out.push({ from: b.id, to: a.id, amount: -d });
+  }));
+  return out.sort((x, y) => y.amount - x.amount);
+}
+
+/** Greedy minimum-transaction settlement from net balances. */
+function simplifyDebts(net) {
+  const debtors = [], creditors = [];
+  for (const id in net) {
+    if (net[id] < 0) debtors.push({ id: id, amt: -net[id] });
+    else if (net[id] > 0) creditors.push({ id: id, amt: net[id] });
+  }
+  debtors.sort((a, b) => b.amt - a.amt || (a.id < b.id ? -1 : 1));
+  creditors.sort((a, b) => b.amt - a.amt || (a.id < b.id ? -1 : 1));
+  const tx = [];
+  let i = 0, j = 0, guard = 0;
+  while (i < debtors.length && j < creditors.length && guard++ < 10000) {
+    const pay = Math.min(debtors[i].amt, creditors[j].amt);
+    if (pay > 0) tx.push({ from: debtors[i].id, to: creditors[j].id, amount: pay });
+    debtors[i].amt -= pay; creditors[j].amt -= pay;
+    if (debtors[i].amt <= 0) i++;
+    if (creditors[j].amt <= 0) j++;
+  }
+  return tx.sort((a, b) => b.amount - a.amount);
+}
+
+/* ==========================================================
+   3. State + storage (db capability, with local fallback)
+   ========================================================== */
+const S = {
+  db: null, ready: false, offline: false,
+  groups: [], gid: null, group: null,
+  expenses: [], settlements: [],
+  tab: "balances", simplify: true,
+  q: "", fcat: "", fmem: "",
+  unsub: []
+};
+
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } }
+};
+const meKey = gid => "sl.me." + gid;
+/** Which member row in this group is me. Once you have signed in with a
+ *  number, the row carrying that number is you — no need to be asked. */
+const myId = () => {
+  if (!S.group) return null;
+  const stored = LS.get(meKey(S.group.id), null);
+  if (stored) return stored;
+  const mine = myPhone();
+  if (mine) {
+    const m = (S.group.members || []).find(x => !x.deleted && x.phone === mine);
+    if (m) { LS.set(meKey(S.group.id), m.id); return m.id; }
+  }
+  return null;
+};
+const meMember = () => { const id = myId(); return S.group ? (S.group.members || []).find(m => m.id === id) || null : null; };
+
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* --- writes --- */
+async function saveGroup(g) {
+  g.updatedAt = nowISO();
+  if (S.db) { try { await S.db.doc("groups/" + g.id).set(g); } catch (e) { handleDbErr(e); } }
+  else {
+    const i = S.groups.findIndex(x => x.id === g.id);
+    i < 0 ? S.groups.push(g) : (S.groups[i] = g);
+    markDirty("groups", g.id);
+    localSave(); render();
+  }
+}
+async function removeGroup(id, label) {
+  const name = label || memberNameOfGroup(id);
+  if (SYNC_ENABLED && !S.db) {
+    // Tombstone, so every phone in the group learns it is gone.
+    tombstoneGroup(id);
+  } else {
+    S.groups = S.groups.filter(g => g.id !== id);
+    S.expenses = S.expenses.filter(e => e.gid !== id);
+    S.settlements = S.settlements.filter(s => s.gid !== id);
+  }
+  const nextLive = S.groups.filter(g => !g.deleted)[0];
+  if (S.gid === id) selectGroup(nextLive ? nextLive.id : null);
+  else render();
+
+  if (S.db) {
+    try {
+      const exps = await S.db.collection("groups/" + id + "/expenses").get();
+      await Promise.all(exps.docs.map(d => S.db.doc("groups/" + id + "/expenses/" + d.id).delete()));
+      const setts = await S.db.collection("groups/" + id + "/settlements").get();
+      await Promise.all(setts.docs.map(d => S.db.doc("groups/" + id + "/settlements/" + d.id).delete()));
+      await S.db.doc("groups/" + id).delete();
+      toast("“" + name + "” deleted");
+    } catch (e) {
+      handleDbErr(e);
+      toast("Couldn't finish deleting “" + name + "” — reload and try again.");
+    }
+  } else {
+    localSave();
+    toast("“" + name + "” deleted");
+  }
+}
+
+/** Local delete: tombstone it and let sync carry the news. */
+function tombstoneGroup(id) {
+  const g = S.groups.find(x => x.id === id);
+  if (!g) return;
+  g.deleted = true; g.updatedAt = nowISO();
+  S.expenses.forEach(e => { if (e.gid === id && !e.deleted) { e.deleted = true; e.updatedAt = g.updatedAt; markDirty("expenses", e.id); } });
+  S.settlements.forEach(s => { if (s.gid === id && !s.deleted) { s.deleted = true; s.updatedAt = g.updatedAt; markDirty("settlements", s.id); } });
+  markDirty("groups", id);
+}
+function memberNameOfGroup(id) {
+  const g = S.groups.find(x => x.id === id);
+  return g ? g.name : "that group";
+}
+async function saveExpense(e) {
+  e.updatedAt = nowISO();
+  if (S.db) { try { await S.db.doc("groups/" + S.gid + "/expenses/" + e.id).set(e); } catch (err) { handleDbErr(err); } }
+  else {
+    const i = S.expenses.findIndex(x => x.id === e.id && x.gid === e.gid);
+    i < 0 ? S.expenses.push(e) : (S.expenses[i] = e);
+    markDirty("expenses", e.id);
+    localSave(); render();
+  }
+}
+async function deleteExpense(id) {
+  if (S.db) { try { await S.db.doc("groups/" + S.gid + "/expenses/" + id).delete(); } catch (err) { handleDbErr(err); } }
+  else {
+    // A tombstone, not a splice: the other phones have to learn it went away.
+    const e = S.expenses.find(x => x.id === id && x.gid === S.gid);
+    if (e) { e.deleted = true; e.updatedAt = nowISO(); markDirty("expenses", e.id); }
+    localSave(); render();
+  }
+}
+async function saveSettlement(s) {
+  s.updatedAt = nowISO();
+  if (S.db) { try { await S.db.doc("groups/" + S.gid + "/settlements/" + s.id).set(s); } catch (err) { handleDbErr(err); } }
+  else {
+    const i = S.settlements.findIndex(x => x.id === s.id && x.gid === s.gid);
+    i < 0 ? S.settlements.push(s) : (S.settlements[i] = s);
+    markDirty("settlements", s.id);
+    localSave(); render();
+  }
+}
+async function deleteSettlement(id) {
+  if (S.db) { try { await S.db.doc("groups/" + S.gid + "/settlements/" + id).delete(); } catch (err) { handleDbErr(err); } }
+  else {
+    const s = S.settlements.find(x => x.id === id && x.gid === S.gid);
+    if (s) { s.deleted = true; s.updatedAt = nowISO(); markDirty("settlements", s.id); }
+    localSave(); render();
+  }
+}
+function handleDbErr(e) {
+  const code = (e && e.code) || "";
+  if (code === "quota_exceeded") toast("Storage is full — delete some old expenses first.");
+  else if (code === "resource_exhausted") toast("Too many changes at once. Try again in a moment.");
+  else if (code === "revoked") { S.offline = true; toast("Lost access to shared storage."); render(); }
+  else toast("Couldn't save that. Try again.");
+  console.warn("db error", e);
+}
+
+/* --- local fallback persistence --- */
+function localSave() {
+  LS.set("sl.groups", S.groups);
+  LS.set("sl.expenses", S.expenses);
+  LS.set("sl.settlements", S.settlements);
+}
+function localLoad() {
+  S.groups = LS.get("sl.groups", []);
+  S.expenses = LS.get("sl.expenses", []);
+  S.settlements = LS.get("sl.settlements", []);
+}
+
+/* --- subscriptions --- */
+function clearSubs() { S.unsub.forEach(u => { try { u(); } catch (e) { } }); S.unsub = []; }
+
+function subscribeGroups() {
+  if (!S.db) return;
+  const un = S.db.collection("groups").onSnapshot(snap => {
+    S.groups = snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+    S.groups.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    S.ready = true;
+    if (!S.gid || !S.groups.some(g => g.id === S.gid)) {
+      const first = S.groups[0] ? S.groups[0].id : null;
+      if (first !== S.gid) { selectGroup(first); return; }
+    }
+    S.group = S.groups.find(g => g.id === S.gid) || null;
+    render();
+  }, e => { handleDbErr(e); S.ready = true; render(); });
+  S.unsub.push(un);
+}
+
+function subscribeGroupData(gid) {
+  if (!S.db || !gid) { render(); return; }
+  const ue = S.db.collection("groups/" + gid + "/expenses").onSnapshot(snap => {
+    S.expenses = snap.docs.map(d => Object.assign({ id: d.id, gid: gid }, d.data()));
+    render();
+  }, handleDbErr);
+  const us = S.db.collection("groups/" + gid + "/settlements").onSnapshot(snap => {
+    S.settlements = snap.docs.map(d => Object.assign({ id: d.id, gid: gid }, d.data()));
+    render();
+  }, handleDbErr);
+  S.groupSubs = [ue, us];
+  S.unsub.push(ue, us);
+}
+
+function selectGroup(gid) {
+  if (S.groupSubs) { S.groupSubs.forEach(u => { try { u(); } catch (e) { } }); S.unsub = S.unsub.filter(u => S.groupSubs.indexOf(u) < 0); S.groupSubs = null; }
+  S.gid = gid;
+  S.group = S.groups.find(g => g.id === gid) || null;
+  S.q = ""; S.fcat = ""; S.fmem = "";
+  LS.set("sl.lastGroup", gid);
+  if (S.db) { S.expenses = []; S.settlements = []; subscribeGroupData(gid); }
+  setRail(false);
+  render();
+}
+
+/* ==========================================================
+   4. Derived views
+   ========================================================== */
+function groupExpenses(gid) { return S.expenses.filter(e => !gid || e.gid === gid || S.db); }
+function currentExpenses() {
+  const list = (S.db ? S.expenses.slice() : S.expenses.filter(e => e.gid === S.gid)).filter(e => !e.deleted);
+  return list.sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+function currentSettlements() {
+  const list = (S.db ? S.settlements.slice() : S.settlements.filter(s => s.gid === S.gid)).filter(s => !s.deleted);
+  return list.sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+/** Live members of a group — tombstoned ones stay in the data so other phones
+ *  learn about the removal, but they are not people any more. */
+function liveMembers(g) { return ((g || {}).members || []).filter(m => !m.deleted); }
+function memberName(id, g) {
+  g = g || S.group; if (!g) return "Someone";
+  const m = (g.members || []).find(x => x.id === id);
+  return m ? displayNameFor(m) : "Removed member";
+}
+function nameOrYou(id) { return id === myId() ? "You" : memberName(id); }
+
+function groupNetFor(g) {
+  // used by the rail: this viewer's balance inside group g
+  const me = LS.get(meKey(g.id), null);
+  if (!me || !S.db) return null;
+  if (g.id !== S.gid) return null;
+  const net = netBalances(liveMembers(g), currentExpenses(), currentSettlements());
+  return net[me] === undefined ? null : net[me];
+}
+
+/* ==========================================================
+   5. Rendering
+   ========================================================== */
+function render() {
+  renderRail();
+  renderTop();
+  const v = $("#view");
+  v.innerHTML = "";
+  if (!S.ready && S.db) { v.appendChild(el("div", { class: "empty", html: "<p>Loading your ledger…</p>" })); return; }
+  if (!S.group) { v.appendChild(emptyNoGroup()); return; }
+  if (!myId()) { v.appendChild(whoAreYouCard()); }
+  if (S.offline) v.appendChild(el("div", { class: "banner warn", html: "<strong>Working offline.</strong>&nbsp;Shared storage isn’t available in this view, so changes stay in this browser only." }));
+  if (S.tab === "balances") renderBalances(v);
+  else if (S.tab === "expenses") renderExpenses(v);
+  else if (S.tab === "insights") renderInsights(v);
+  else renderActivity(v);
+}
+
+function renderRail() {
+  const list = $("#groupList"); list.innerHTML = "";
+  const live = S.groups.filter(g => !g.deleted);
+  $("#groupCount").textContent = live.length ? live.length : "";
+  if (!live.length) {
+    list.appendChild(el("p", { class: "hint", style: "padding:8px 10px", text: "No groups yet. Create one to start splitting." }));
+    return;
+  }
+  live.forEach(g => {
+    const net = g.id === S.gid ? (myId() ? netBalances(liveMembers(g), currentExpenses(), currentSettlements())[myId()] : null) : null;
+    const b = net == null || net === 0 ? null : el("span", {
+      class: "gb mono " + (net > 0 ? "pos" : "neg"),
+      text: (net > 0 ? "+" : "−") + fmtShort(Math.abs(net), g.currency).replace("-", "")
+    });
+    const row = el("div", { class: "gitem-row" + (g.id === S.gid ? " active" : "") });
+    row.appendChild(el("button", {
+      class: "gitem", "aria-current": g.id === S.gid ? "true" : "false",
+      onclick: () => selectGroup(g.id)
+    }, [el("span", { class: "gn", text: g.name }), b]));
+    row.appendChild(el("button", {
+      class: "gdel", title: "Delete " + g.name, "aria-label": "Delete group " + g.name,
+      onclick: (ev) => { ev.stopPropagation(); confirmDeleteGroup(g); }
+    }, [iconSvg("M3 4.4h10M6.4 4.4V2.9h3.2v1.5M4.7 4.4l.6 8.3a.9.9 0 0 0 .9.8h3.6a.9.9 0 0 0 .9-.8l.6-8.3")]));
+    list.appendChild(row);
+  });
+}
+
+/** Delete a whole group — its members, expenses and recorded payments. */
+function confirmDeleteGroup(g) {
+  confirmModal({
+    title: "Delete this group?",
+    danger: true,
+    confirmLabel: "Delete group",
+    message: "<strong>" + esc(g.name) + "</strong> and everything in it — its members, every expense and all recorded payments — will be removed.\n\nThis cannot be undone"
+      + (S.db ? ", and it disappears for everyone who can open this page." : "."),
+    onConfirm: () => removeGroup(g.id, g.name)
+  });
+}
+
+function renderTop() {
+  const g = S.group;
+  $("#groupName").textContent = g ? g.name : "Split Ledger";
+  const sub = $("#groupSub"); sub.innerHTML = "";
+  const acts = $("#topActions"); acts.innerHTML = "";
+  const tabsEl = $("#tabs"); tabsEl.innerHTML = "";
+  if (!g) return;
+
+  const exps = currentExpenses();
+  const total = exps.reduce((a, e) => a + e.amount, 0);
+  sub.appendChild(el("span", { text: liveMembers(g).length + " " + (liveMembers(g).length === 1 ? "member" : "members") }));
+  sub.appendChild(el("span", { text: "·" }));
+  sub.appendChild(el("span", { class: "mono", text: fmt(total, g.currency) + " tracked" }));
+  if (g.sample) { sub.appendChild(el("span", { text: "·" })); sub.appendChild(el("span", { class: "pill", text: "Sample group" })); }
+
+  acts.appendChild(el("button", { class: "btn btn-primary", onclick: () => openExpenseModal(null) }, [
+    iconSvg("M8 3v10M3 8h10"), document.createTextNode("Add expense")
+  ]));
+  acts.appendChild(el("button", { class: "btn", onclick: () => openSettleModal(null) }, [
+    iconSvg("M2 8h12M10 4l4 4-4 4"), document.createTextNode("Settle up")
+  ]));
+  acts.appendChild(el("button", { class: "btn btn-ghost", title: "Group settings", "aria-label": "Group settings", onclick: () => openGroupModal(S.group) }, [
+    iconSvg("M8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4zM8 1.6v1.6M8 12.8v1.6M14.4 8h-1.6M3.2 8H1.6M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1M12.5 12.5l-1.1-1.1M4.6 4.6L3.5 3.5")
+  ]));
+
+  const tabs = [
+    { id: "balances", label: "Balances" },
+    { id: "expenses", label: "Expenses", cnt: exps.length },
+    { id: "insights", label: "Insights" },
+    { id: "activity", label: "Activity" }
+  ];
+  tabs.forEach(t => {
+    const b = el("button", {
+      class: "tab", role: "tab", "aria-selected": S.tab === t.id ? "true" : "false",
+      onclick: () => { S.tab = t.id; render(); }
+    }, [document.createTextNode(t.label)]);
+    if (t.cnt) b.appendChild(el("span", { class: "cnt", text: t.cnt }));
+    tabsEl.appendChild(b);
+  });
+}
+
+function iconSvg(d) {
+  const ns = "http://www.w3.org/2000/svg";
+  const s = document.createElementNS(ns, "svg");
+  s.setAttribute("class", "icon"); s.setAttribute("viewBox", "0 0 16 16");
+  s.setAttribute("fill", "none"); s.setAttribute("stroke", "currentColor");
+  s.setAttribute("stroke-width", "1.7"); s.setAttribute("stroke-linecap", "round"); s.setAttribute("stroke-linejoin", "round");
+  const p = document.createElementNS(ns, "path"); p.setAttribute("d", d); s.appendChild(p);
+  return s;
+}
+
+function emptyNoGroup() {
+  const wrap = el("div", { class: "card" });
+  const b = el("div", { class: "empty" });
+  b.appendChild(el("h4", { text: "Start your first group" }));
+  b.appendChild(el("p", { text: "A group is a trip, a flat, a dinner club — anywhere the same set of people keeps paying for each other. Add the people once and every expense splits itself from there." }));
+  b.appendChild(el("button", { class: "btn btn-primary", text: "Create a group", onclick: () => openGroupModal(null) }));
+  wrap.appendChild(b);
+  return wrap;
+}
+
+function whoAreYouCard() {
+  const g = S.group;
+  const card = el("div", { class: "banner", style: "align-items:center;flex-wrap:wrap" });
+  card.appendChild(el("strong", { text: "Which one of these is you?" }));
+  const sel = el("select", { style: "width:auto;min-width:150px" });
+  sel.appendChild(el("option", { value: "", text: "Choose…" }));
+  liveMembers(g).forEach(m => sel.appendChild(el("option", { value: m.id, text: displayNameFor(m) })));
+  sel.addEventListener("change", () => { if (sel.value) { LS.set(meKey(g.id), sel.value); render(); } });
+  card.appendChild(sel);
+  card.appendChild(el("span", { class: "hint", text: "Only this browser remembers your choice." }));
+  return card;
+}
+
+/* ---------- Balances tab ---------- */
+function renderBalances(v) {
+  const g = S.group, exps = currentExpenses(), setts = currentSettlements();
+  const members = liveMembers(g);
+  const net = netBalances(members, exps, setts);
+  const me = myId();
+
+  // hero
+  const mine = me ? net[me] || 0 : 0;
+  const owedToYou = me ? pairwiseDebts(members, exps, setts).filter(d => d.to === me).reduce((a, d) => a + d.amount, 0) : 0;
+  const youOwe = me ? pairwiseDebts(members, exps, setts).filter(d => d.from === me).reduce((a, d) => a + d.amount, 0) : 0;
+  const totalSpend = exps.reduce((a, e) => a + e.amount, 0);
+  const yourShare = me ? exps.reduce((a, e) => a + ((e.splits || {})[me] || 0), 0) : 0;
+
+  const hero = el("div", { class: "hero" });
+  const hm = el("div", { class: "hero-main" });
+  hm.appendChild(el("div", { class: "hero-label", text: me ? "Your position in " + g.name : "Group total" }));
+  hm.appendChild(el("div", {
+    class: "hero-figure " + (me ? (mine > 0 ? "pos" : mine < 0 ? "neg" : "zero") : ""),
+    text: me ? fmt(Math.abs(mine), g.currency) : fmt(totalSpend, g.currency)
+  }));
+  hm.appendChild(el("div", {
+    class: "hero-note",
+    text: !me ? "Total tracked across " + exps.length + " " + (exps.length === 1 ? "expense" : "expenses")
+      : mine > 0 ? "You get this back overall" : mine < 0 ? "You owe this overall" : "You're all square"
+  }));
+  hero.appendChild(hm);
+  const hs = el("div", { class: "hero-stats" });
+  [
+    ["Owed to you", owedToYou, "pos"],
+    ["You owe", youOwe, "neg"],
+    ["Your share", yourShare, ""],
+    ["Group total", totalSpend, ""]
+  ].forEach(([k, val, cls]) => {
+    if (!me && (k === "Owed to you" || k === "You owe" || k === "Your share")) return;
+    const d = el("div", { class: "hstat" });
+    d.appendChild(el("div", { class: "k", text: k }));
+    d.appendChild(el("div", { class: "v " + (val ? cls : "zero"), text: fmt(val, g.currency) }));
+    hs.appendChild(d);
+  });
+  hero.appendChild(hs);
+  v.appendChild(hero);
+
+  const cols = el("div", { class: "cols", style: "margin-top:18px" });
+
+  // who owes whom
+  const settleCard = el("div", { class: "card" });
+  const hd = el("div", { class: "card-hd" });
+  hd.appendChild(el("h3", { text: "Settle up" }));
+  const seg = el("div", { class: "seg" });
+  seg.appendChild(el("button", { "aria-pressed": S.simplify ? "true" : "false", text: "Simplified", onclick: () => { S.simplify = true; render(); } }));
+  seg.appendChild(el("button", { "aria-pressed": !S.simplify ? "true" : "false", text: "Exact debts", onclick: () => { S.simplify = false; render(); } }));
+  hd.appendChild(seg);
+  settleCard.appendChild(hd);
+
+  const raw = pairwiseDebts(members, exps, setts);
+  const simple = simplifyDebts(net);
+  const list = S.simplify ? simple : raw;
+  const bd = el("div", { class: "card-bd" });
+
+  if (!list.length) {
+    bd.appendChild(el("div", { class: "empty", style: "padding:26px 10px" }, [
+      el("h4", { text: "Everyone's square" }),
+      el("p", { text: exps.length ? "No outstanding debts in this group." : "Add an expense and balances will appear here." })
+    ]));
+  } else {
+    if (S.simplify && raw.length > simple.length) {
+      bd.appendChild(el("p", {
+        class: "hint", style: "margin:8px 0 2px",
+        text: simple.length + " " + (simple.length === 1 ? "payment" : "payments") + " instead of " + raw.length + " — same result, less shuffling."
+      }));
+    }
+    const ledger = el("div", { class: "ledger" });
+    list.forEach(d => {
+      const row = el("div", { class: "settle-row" });
+      const flow = el("div", { class: "flow" });
+      flow.appendChild(el("div", { class: "avatar" + (d.from === me ? " me" : ""), text: initials(memberName(d.from)) }));
+      flow.appendChild(el("span", { class: "nm", text: nameOrYou(d.from) }));
+      flow.appendChild(el("span", { class: "arrow", html: "&rarr;" }));
+      flow.appendChild(el("div", { class: "avatar" + (d.to === me ? " me" : ""), text: initials(memberName(d.to)) }));
+      flow.appendChild(el("span", { class: "nm", text: nameOrYou(d.to) }));
+      row.appendChild(flow);
+      row.appendChild(el("span", { class: "mono", style: "font-weight:600", text: fmt(d.amount, g.currency) }));
+      row.appendChild(el("button", {
+        class: "btn btn-sm", text: "Record", onclick: () => openSettleModal({ from: d.from, to: d.to, amount: d.amount })
+      }));
+      ledger.appendChild(row);
+    });
+    bd.appendChild(ledger);
+  }
+  settleCard.appendChild(bd);
+  cols.appendChild(settleCard);
+
+  // per-member ledger
+  const memCard = el("div", { class: "card" });
+  const mh = el("div", { class: "card-hd" });
+  mh.appendChild(el("h3", { text: "Member ledger" }));
+  mh.appendChild(el("button", { class: "btn btn-sm btn-ghost", text: "Manage", onclick: () => openGroupModal(S.group) }));
+  memCard.appendChild(mh);
+  const mb = el("div", { class: "card-bd" });
+  const led = el("div", { class: "ledger" });
+  members.slice().sort((a, b) => (net[b.id] || 0) - (net[a.id] || 0)).forEach(m => {
+    const n = net[m.id] || 0;
+    const paid = exps.reduce((a, e) => a + (payersOf(e)[m.id] || 0), 0);
+    const share = exps.reduce((a, e) => a + ((e.splits || {})[m.id] || 0), 0);
+    const row = el("div", { class: "lrow" });
+    row.appendChild(el("div", { class: "avatar" + (m.id === me ? " me" : ""), text: initials(displayNameFor(m)) }));
+    const who = el("div", { style: "min-width:0" });
+    who.appendChild(el("div", { class: "who", text: displayNameFor(m) + (m.id === me ? " (you)" : "") }));
+    who.appendChild(el("div", { class: "tag mono", text: "paid " + fmtShort(paid, g.currency) + " · share " + fmtShort(share, g.currency) }));
+    row.appendChild(who);
+    row.appendChild(el("span", { class: "rule" }));
+    const amt = el("div", { style: "text-align:right" });
+    amt.appendChild(el("div", { class: "amt " + (n > 0 ? "pos" : n < 0 ? "neg" : "zero"), text: n === 0 ? fmt(0, g.currency) : (n > 0 ? "+" : "−") + fmt(Math.abs(n), g.currency) }));
+    amt.appendChild(el("div", { class: "tag", text: n > 0 ? "gets back" : n < 0 ? "owes" : "settled" }));
+    row.appendChild(amt);
+    led.appendChild(row);
+  });
+  mb.appendChild(led);
+  memCard.appendChild(mb);
+  cols.appendChild(memCard);
+
+  v.appendChild(cols);
+
+  // recorded settlements
+  if (setts.length) {
+    const sc = el("div", { class: "card", style: "margin-top:18px" });
+    sc.appendChild(el("div", { class: "card-hd" }, [el("h3", { text: "Payments recorded" })]));
+    const sb = el("div", { class: "card-bd" });
+    const sl = el("div", { class: "ledger" });
+    setts.slice(0, 12).forEach(s => {
+      const row = el("div", { class: "lrow" });
+      row.appendChild(el("span", { class: "who", text: nameOrYou(s.from) + " paid " + nameOrYou(s.to) }));
+      row.appendChild(el("span", { class: "tag", text: dateParts(s.date).d + " " + dateParts(s.date).m + (s.method ? " · " + s.method : "") }));
+      row.appendChild(el("span", { class: "rule" }));
+      row.appendChild(el("span", { class: "amt", text: fmt(s.amount, g.currency) }));
+      row.appendChild(el("button", {
+        class: "btn btn-sm btn-ghost btn-danger", text: "Undo",
+        onclick: () => confirmModal({
+          title: "Remove this payment?",
+          danger: true, confirmLabel: "Remove payment",
+          message: "The record of <strong>" + esc(nameOrYou(s.from)) + "</strong> paying <strong>" + esc(nameOrYou(s.to)) + " " + esc(fmt(s.amount, g.currency)) + "</strong> will be deleted, and that debt will reappear in the balances.",
+          onConfirm: () => { deleteSettlement(s.id); toast("Payment removed"); }
+        })
+      }));
+      sl.appendChild(row);
+    });
+    sb.appendChild(sl);
+    sc.appendChild(sb);
+    v.appendChild(sc);
+  }
+}
+
+/* ---------- Expenses tab ---------- */
+function renderExpenses(v) {
+  const g = S.group, all = currentExpenses(), me = myId();
+
+  const filters = el("div", { class: "filters" });
+  const search = el("div", { class: "search" });
+  search.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2L14 14" stroke-linecap="round"/></svg>';
+  const si = el("input", { type: "text", id: "expSearch", placeholder: "Search description or amount", value: S.q });
+  si.addEventListener("input", () => { S.q = si.value; drawList(); });
+  search.appendChild(si);
+  filters.appendChild(search);
+
+  const cs = el("select", { id: "expCat", style: "width:auto" });
+  cs.appendChild(el("option", { value: "", text: "All categories" }));
+  CATEGORIES.forEach(c => cs.appendChild(el("option", { value: c, text: c, selected: S.fcat === c ? "selected" : null })));
+  cs.addEventListener("change", () => { S.fcat = cs.value; drawList(); });
+  filters.appendChild(cs);
+
+  const ms = el("select", { id: "expMem", style: "width:auto" });
+  ms.appendChild(el("option", { value: "", text: "Anyone involved" }));
+  liveMembers(g).forEach(m => ms.appendChild(el("option", { value: m.id, text: displayNameFor(m), selected: S.fmem === m.id ? "selected" : null })));
+  ms.addEventListener("change", () => { S.fmem = ms.value; drawList(); });
+  filters.appendChild(ms);
+  v.appendChild(filters);
+
+  const card = el("div", { class: "card" });
+  const body = el("div", { class: "card-bd", id: "expList" });
+  card.appendChild(body);
+  v.appendChild(card);
+
+  function match(e) {
+    const q = S.q.trim().toLowerCase();
+    if (q) {
+      const hay = (e.description + " " + e.category + " " + (e.amount / 100).toFixed(2) + " " + memberName(e.paidBy)).toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    if (S.fcat && e.category !== S.fcat) return false;
+    if (S.fmem && !(payersOf(e)[S.fmem] || (e.splits || {})[S.fmem])) return false;
+    return true;
+  }
+
+  function drawList() {
+    body.innerHTML = "";
+    const list = all.filter(match);
+    if (!list.length) {
+      body.appendChild(el("div", { class: "empty" }, [
+        el("h4", { text: all.length ? "Nothing matches those filters" : "No expenses yet" }),
+        el("p", { text: all.length ? "Clear the search or pick a different category." : "Add the first bill — dinner, cab, rent — and Split Ledger works out who owes whom." }),
+        el("button", { class: "btn btn-primary", text: "Add expense", onclick: () => openExpenseModal(null) })
+      ]));
+      return;
+    }
+    const sum = list.reduce((a, e) => a + e.amount, 0);
+    body.appendChild(el("p", { class: "hint", style: "margin:8px 0 2px", text: list.length + " " + (list.length === 1 ? "expense" : "expenses") + " · " + fmt(sum, g.currency) }));
+    let lastMonth = "";
+    list.forEach(e => {
+      const dp = dateParts(e.date);
+      const key = dp.m + " " + dp.y;
+      if (key !== lastMonth) {
+        lastMonth = key;
+        body.appendChild(el("div", { class: "rail-label", style: "padding:14px 0 4px", text: key }));
+      }
+      body.appendChild(expenseRow(e, me, g));
+    });
+  }
+  drawList();
+}
+
+function expenseRow(e, me, g) {
+  const dp = dateParts(e.date);
+  const row = el("button", { class: "erow", onclick: () => openExpenseModal(e) });
+  const d = el("div", { class: "edate" });
+  d.appendChild(el("span", { class: "d", text: dp.d }));
+  d.appendChild(el("span", { class: "m", text: dp.m }));
+  row.appendChild(d);
+
+  const b = el("div", { class: "ebody" });
+  b.appendChild(el("div", { class: "t", text: e.description }));
+  const pay = payersOf(e);
+  const payerIds = Object.keys(pay);
+  const payerTxt = payerIds.length > 1
+    ? payerIds.length + " people paid"
+    : nameOrYou(payerIds[0]) + " paid";
+  const s = el("div", { class: "s" });
+  s.appendChild(el("span", { text: payerTxt }));
+  s.appendChild(el("span", { class: "pill", text: e.category || "Other" }));
+  if (e.splitType && e.splitType !== "equal") {
+    const st = SPLIT_TYPES.find(x => x.id === e.splitType);
+    s.appendChild(el("span", { class: "pill", text: st ? st.label : e.splitType }));
+  }
+  b.appendChild(s);
+  row.appendChild(b);
+
+  const a = el("div", { class: "eamt" });
+  a.appendChild(el("div", { class: "total", text: fmt(e.amount, g.currency) }));
+  if (me) {
+    const mine = (e.splits || {})[me] || 0;
+    const paid = pay[me] || 0;
+    const delta = paid - mine;
+    a.appendChild(el("div", {
+      class: "yours " + (delta > 0 ? "pos" : delta < 0 ? "neg" : "zero"),
+      text: delta > 0 ? "you lent " + fmt(delta, g.currency) : delta < 0 ? "you owe " + fmt(-delta, g.currency) : "not involved"
+    }));
+  }
+  row.appendChild(a);
+  return row;
+}
+
+/* ---------- Activity tab ---------- */
+function renderActivity(v) {
+  const g = S.group;
+  const items = [];
+  currentExpenses().forEach(e => items.push({
+    at: e.createdAt || e.date, kind: "expense",
+    text: nameOrYou(e.createdBy || Object.keys(payersOf(e))[0]) + " added “" + e.description + "”",
+    amt: e.amount, sub: Object.keys(payersOf(e)).map(nameOrYou).join(", ") + " paid · split " + ((SPLIT_TYPES.find(s => s.id === e.splitType) || {}).label || "equally").toLowerCase(),
+    ref: e
+  }));
+  currentSettlements().forEach(s => items.push({
+    at: s.createdAt || s.date, kind: "settle",
+    text: nameOrYou(s.from) + " paid " + nameOrYou(s.to),
+    amt: s.amount, sub: (s.method || "Payment") + (s.note ? " · " + s.note : ""),
+    ref: s
+  }));
+  items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+
+  const card = el("div", { class: "card" });
+  card.appendChild(el("div", { class: "card-hd" }, [el("h3", { text: "Activity" }), el("span", { class: "hint", text: "Newest first" })]));
+  const bd = el("div", { class: "card-bd" });
+  if (!items.length) {
+    bd.appendChild(el("div", { class: "empty" }, [el("h4", { text: "Nothing has happened yet" }), el("p", { text: "Expenses and payments will show up here as the group uses the ledger." })]));
+  } else {
+    const led = el("div", { class: "ledger" });
+    items.slice(0, 100).forEach(it => {
+      const row = el("div", { class: "lrow" });
+      row.appendChild(el("div", { class: "avatar", text: it.kind === "settle" ? "₹" : "+" }));
+      const t = el("div", { style: "min-width:0;flex:0 1 auto" });
+      t.appendChild(el("div", { class: "who", text: it.text }));
+      t.appendChild(el("div", { class: "tag", text: it.sub + " · " + relTime(it.at) }));
+      row.appendChild(t);
+      row.appendChild(el("span", { class: "rule" }));
+      const p = el("span", { class: "pill" + (it.kind === "settle" ? " settle" : ""), text: it.kind === "settle" ? "payment" : "expense" });
+      row.appendChild(p);
+      row.appendChild(el("span", { class: "amt", text: fmt(it.amt, g.currency) }));
+      led.appendChild(row);
+    });
+    bd.appendChild(led);
+  }
+  card.appendChild(bd);
+  v.appendChild(card);
+}
+
+/* ==========================================================
+   6. Insights — charts
+   ========================================================== */
+const TIP = {
+  show(evt, html) {
+    const t = $("#tip"); t.innerHTML = html; t.style.opacity = "1";
+    const r = t.getBoundingClientRect();
+    let x = evt.clientX + 14, y = evt.clientY - r.height - 10;
+    if (x + r.width > window.innerWidth - 8) x = evt.clientX - r.width - 14;
+    if (y < 8) y = evt.clientY + 18;
+    t.style.left = x + "px"; t.style.top = y + "px";
+  },
+  hide() { $("#tip").style.opacity = "0"; }
+};
+const SVGNS = "http://www.w3.org/2000/svg";
+function svg(tag, attrs) {
+  const n = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+  return n;
+}
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+/** Horizontal magnitude bars — one series, one hue, direct value labels. */
+function barsH(rows, opts) {
+  opts = opts || {};
+  const W = 560, rowH = 30, padT = 6, padB = 4;
+  const labelW = opts.labelW || 130, valW = 92;
+  const H = padT + padB + rows.length * rowH;
+  const s = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": opts.aria || "bar chart" });
+  const max = Math.max(1, ...rows.map(r => r.value));
+  const trackX = labelW + 8, trackW = W - trackX - valW;
+  rows.forEach((r, i) => {
+    const y = padT + i * rowH;
+    const bw = Math.max(2, (r.value / max) * trackW);
+    s.appendChild(svg("text", { x: labelW, y: y + 19, "text-anchor": "end", fill: "var(--ink-2)", "font-size": "12.5", "font-family": "var(--font-body)" })).textContent = r.label;
+    s.appendChild(svg("rect", { x: trackX, y: y + 8, width: trackW, height: 14, rx: 4, fill: "var(--surface-3)" }));
+    const bar = svg("rect", { x: trackX, y: y + 8, width: bw, height: 14, rx: 4, fill: "var(--series)" });
+    bar.style.cursor = "default";
+    bar.addEventListener("mousemove", ev => TIP.show(ev, '<div class="tk">' + esc(r.label) + '</div><div class="tv">' + esc(r.display) + "</div>" + (r.note ? '<div class="tk">' + esc(r.note) + "</div>" : "")));
+    bar.addEventListener("mouseleave", TIP.hide);
+    s.appendChild(bar);
+    const tv = svg("text", { x: W - 2, y: y + 19, "text-anchor": "end", fill: "var(--ink)", "font-size": "12.5", "font-family": "var(--font-mono)", "font-weight": "500" });
+    tv.textContent = r.display;
+    s.appendChild(tv);
+  });
+  return s;
+}
+
+/** Diverging balance chart: owes (left, red) vs gets back (right, blue). */
+function divergingBars(rows, opts) {
+  const W = 560, rowH = 32, padT = 8, padB = 22;
+  const H = padT + padB + rows.length * rowH;
+  const s = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Balance per member" });
+  const mid = W / 2;
+  const maxAbs = Math.max(1, ...rows.map(r => Math.abs(r.value)));
+  const half = W / 2 - 96;
+  s.appendChild(svg("line", { x1: mid, y1: padT, x2: mid, y2: H - padB, stroke: "var(--axis)", "stroke-width": "1" }));
+  rows.forEach((r, i) => {
+    const y = padT + i * rowH;
+    const w = Math.max(r.value === 0 ? 0 : 2, (Math.abs(r.value) / maxAbs) * half);
+    const isPos = r.value > 0;
+    const x = isPos ? mid + 1 : mid - w - 1;
+    if (r.value !== 0) {
+      const bar = svg("rect", { x: x, y: y + 7, width: w, height: 16, rx: 4, fill: isPos ? "var(--div-pos)" : "var(--div-neg)" });
+      bar.addEventListener("mousemove", ev => TIP.show(ev, '<div class="tk">' + esc(r.label) + '</div><div class="tv">' + esc(r.display) + '</div><div class="tk">' + (isPos ? "gets back" : "owes") + "</div>"));
+      bar.addEventListener("mouseleave", TIP.hide);
+      s.appendChild(bar);
+    }
+    const lbl = svg("text", {
+      x: isPos ? mid - 8 : mid + 8, y: y + 20,
+      "text-anchor": isPos ? "end" : "start",
+      fill: "var(--ink-2)", "font-size": "12.5", "font-family": "var(--font-body)"
+    });
+    lbl.textContent = r.label;
+    s.appendChild(lbl);
+    const val = svg("text", {
+      x: isPos ? Math.min(W - 2, mid + w + 8) : Math.max(2, mid - w - 8), y: y + 20,
+      "text-anchor": isPos ? "start" : "end",
+      fill: "var(--ink)", "font-size": "12", "font-family": "var(--font-mono)", "font-weight": "500"
+    });
+    val.textContent = r.display;
+    s.appendChild(val);
+  });
+  const lo = svg("text", { x: mid - 8, y: H - 6, "text-anchor": "end", fill: "var(--muted)", "font-size": "11", "font-family": "var(--font-body)" });
+  lo.textContent = "owes";
+  const hi = svg("text", { x: mid + 8, y: H - 6, "text-anchor": "start", fill: "var(--muted)", "font-size": "11", "font-family": "var(--font-body)" });
+  hi.textContent = "gets back";
+  s.appendChild(lo); s.appendChild(hi);
+  return s;
+}
+
+/** Monthly columns with a hairline grid and an emphasized latest bar. */
+function columns(rows, opts) {
+  const W = 560, H = 220, padL = 52, padR = 10, padT = 12, padB = 34;
+  const s = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Spending by month" });
+  const max = Math.max(1, ...rows.map(r => r.value));
+  const step = niceStep(max);
+  const top = Math.ceil(max / step) * step;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  for (let t = 0; t <= top + 0.001; t += step) {
+    const y = padT + plotH - (t / top) * plotH;
+    s.appendChild(svg("line", { x1: padL, y1: y, x2: W - padR, y2: y, stroke: t === 0 ? "var(--axis)" : "var(--grid)", "stroke-width": "1" }));
+    const tx = svg("text", { x: padL - 8, y: y + 4, "text-anchor": "end", fill: "var(--muted)", "font-size": "11", "font-family": "var(--font-mono)" });
+    tx.textContent = fmtShort(t, S.group && S.group.currency);
+    s.appendChild(tx);
+  }
+  const bw = Math.min(46, (plotW / Math.max(1, rows.length)) - 10);
+  rows.forEach((r, i) => {
+    const cx = padL + (plotW / rows.length) * (i + 0.5);
+    const h = (r.value / top) * plotH;
+    const y = padT + plotH - h;
+    const bar = svg("rect", {
+      x: cx - bw / 2, y: y, width: bw, height: Math.max(h, r.value > 0 ? 2 : 0), rx: 4,
+      fill: i === rows.length - 1 ? "var(--series)" : "var(--series)", opacity: i === rows.length - 1 ? "1" : "0.68"
+    });
+    bar.addEventListener("mousemove", ev => TIP.show(ev, '<div class="tk">' + esc(r.label) + '</div><div class="tv">' + esc(r.display) + '</div><div class="tk">' + r.count + " " + (r.count === 1 ? "expense" : "expenses") + "</div>"));
+    bar.addEventListener("mouseleave", TIP.hide);
+    s.appendChild(bar);
+    const lx = svg("text", { x: cx, y: H - 12, "text-anchor": "middle", fill: "var(--muted)", "font-size": "11", "font-family": "var(--font-body)" });
+    lx.textContent = r.label;
+    s.appendChild(lx);
+  });
+  return s;
+}
+function niceStep(max) {
+  const rough = max / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(1, rough))));
+  const n = rough / mag;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+}
+
+function chartCard(title, note, node, table) {
+  const c = el("div", { class: "card" });
+  const hd = el("div", { class: "card-hd" });
+  hd.appendChild(el("h3", { text: title }));
+  c.appendChild(hd);
+  const bd = el("div", { class: "card-bd" });
+  if (note) bd.appendChild(el("p", { class: "hint", style: "margin:8px 0 10px", text: note }));
+  const w = el("div", { class: "chart-wrap" });
+  w.appendChild(node);
+  bd.appendChild(w);
+  if (table) {
+    const det = el("details", { style: "margin-top:10px" });
+    det.appendChild(el("summary", { class: "hint", style: "cursor:pointer", text: "View as table" }));
+    const sc = el("div", { class: "scrollx", style: "margin-top:8px" });
+    sc.appendChild(table);
+    det.appendChild(sc);
+    bd.appendChild(det);
+  }
+  c.appendChild(bd);
+  return c;
+}
+function simpleTable(cols, rows) {
+  const t = el("table", { class: "tbl" });
+  const thead = el("thead"); const tr = el("tr");
+  cols.forEach(c => tr.appendChild(el("th", { text: c })));
+  thead.appendChild(tr); t.appendChild(thead);
+  const tb = el("tbody");
+  rows.forEach(r => {
+    const row = el("tr");
+    r.forEach((cell, i) => row.appendChild(el("td", { class: i > 0 ? "num" : "", text: cell })));
+    tb.appendChild(row);
+  });
+  t.appendChild(tb);
+  return t;
+}
+
+function renderInsights(v) {
+  const g = S.group, exps = currentExpenses(), setts = currentSettlements();
+  const members = liveMembers(g);
+  if (!exps.length) {
+    v.appendChild(el("div", { class: "card" }, [el("div", { class: "empty" }, [
+      el("h4", { text: "No numbers to chart yet" }),
+      el("p", { text: "Insights appear once the group has a few expenses — where the money goes, who's carrying the bills, and how spending moves month to month." }),
+      el("button", { class: "btn btn-primary", text: "Add expense", onclick: () => openExpenseModal(null) })
+    ])]));
+    return;
+  }
+
+  const total = exps.reduce((a, e) => a + e.amount, 0);
+  const days = (() => {
+    const ds = exps.map(e => e.date).sort();
+    const a = new Date(ds[0]), b = new Date(ds[ds.length - 1]);
+    return Math.max(1, Math.round((b - a) / 86400000) + 1);
+  })();
+  const strip = el("div", { class: "hero", style: "margin-bottom:18px" });
+  const sm = el("div", { class: "hero-main" });
+  sm.appendChild(el("div", { class: "hero-label", text: "Total tracked" }));
+  sm.appendChild(el("div", { class: "hero-figure", text: fmt(total, g.currency) }));
+  sm.appendChild(el("div", { class: "hero-note", text: exps.length + " expenses over " + days + " " + (days === 1 ? "day" : "days") }));
+  strip.appendChild(sm);
+  const ss = el("div", { class: "hero-stats" });
+  const biggest = exps.slice().sort((a, b) => b.amount - a.amount)[0];
+  [
+    ["Average expense", fmt(Math.round(total / exps.length), g.currency)],
+    ["Per person", fmt(Math.round(total / Math.max(1, members.length)), g.currency)],
+    ["Largest", fmt(biggest.amount, g.currency)],
+    ["Payments settled", fmt(setts.reduce((a, s) => a + s.amount, 0), g.currency)]
+  ].forEach(([k, val]) => {
+    const d = el("div", { class: "hstat" });
+    d.appendChild(el("div", { class: "k", text: k }));
+    d.appendChild(el("div", { class: "v", text: val }));
+    ss.appendChild(d);
+  });
+  strip.appendChild(ss);
+  v.appendChild(strip);
+
+  const grid = el("div", { class: "chart-grid" });
+
+  // by category
+  const catMap = {};
+  exps.forEach(e => { const c = e.category || "Other"; catMap[c] = (catMap[c] || 0) + e.amount; });
+  const catRows = Object.keys(catMap).map(k => ({ label: k, value: catMap[k] }))
+    .sort((a, b) => b.value - a.value).slice(0, 9);
+  catRows.forEach(r => { r.display = fmt(r.value, g.currency); r.note = Math.round((r.value / total) * 100) + "% of group spend"; });
+  grid.appendChild(chartCard("Where the money goes", "Total spend per category, largest first.",
+    barsH(catRows, { aria: "Spend by category" }),
+    simpleTable(["Category", "Amount", "Share"], catRows.map(r => [r.label, fmt(r.value, g.currency), Math.round((r.value / total) * 100) + "%"]))));
+
+  // who paid
+  const payRows = members.map(m => ({
+    label: displayNameFor(m),
+    value: exps.reduce((a, e) => a + (payersOf(e)[m.id] || 0), 0)
+  })).sort((a, b) => b.value - a.value);
+  payRows.forEach(r => { r.display = fmt(r.value, g.currency); r.note = Math.round((r.value / total) * 100) + "% of the bills"; });
+  grid.appendChild(chartCard("Who fronts the bills", "How much each person has paid out of pocket — not what they owe.",
+    barsH(payRows, { aria: "Amount paid per person", labelW: 110 }),
+    simpleTable(["Member", "Paid", "Their share"], members.map(m => [
+      displayNameFor(m),
+      fmt(exps.reduce((a, e) => a + (payersOf(e)[m.id] || 0), 0), g.currency),
+      fmt(exps.reduce((a, e) => a + ((e.splits || {})[m.id] || 0), 0), g.currency)
+    ]))));
+
+  // monthly
+  const mMap = {};
+  exps.forEach(e => {
+    const k = String(e.date).slice(0, 7);
+    if (!mMap[k]) mMap[k] = { total: 0, count: 0 };
+    mMap[k].total += e.amount; mMap[k].count++;
+  });
+  const monthRows = Object.keys(mMap).sort().slice(-12).map(k => {
+    const p = k.split("-");
+    return { label: MONTHS[parseInt(p[1], 10) - 1] + " " + p[0].slice(2), value: mMap[k].total, count: mMap[k].count, display: fmt(mMap[k].total, g.currency) };
+  });
+  grid.appendChild(chartCard("Spending by month", "The most recent month is emphasised.",
+    columns(monthRows),
+    simpleTable(["Month", "Spend", "Expenses"], monthRows.map(r => [r.label, r.display, String(r.count)]))));
+
+  // balance diverging
+  const net = netBalances(members, exps, setts);
+  const balRows = members.map(m => ({ label: displayNameFor(m), value: net[m.id] || 0, display: fmt(Math.abs(net[m.id] || 0), g.currency) }))
+    .sort((a, b) => b.value - a.value);
+  const balCard = chartCard("Standing balance", "Left of the line is money owed; right of the line is money to come back.",
+    divergingBars(balRows),
+    simpleTable(["Member", "Balance", "Direction"], balRows.map(r => [r.label, r.display, r.value > 0 ? "gets back" : r.value < 0 ? "owes" : "settled"])));
+  const lg = el("div", { class: "legend" });
+  lg.appendChild(el("span", { html: '<span class="swatch" style="background:var(--div-neg)"></span> owes the group' }));
+  lg.appendChild(el("span", { html: '<span class="swatch" style="background:var(--div-pos)"></span> is owed by the group' }));
+  $(".card-bd", balCard).appendChild(lg);
+  grid.appendChild(balCard);
+
+  v.appendChild(grid);
+}
+
+/* ==========================================================
+   7. Modals
+   ========================================================== */
+function closeModal() { $("#modalRoot").innerHTML = ""; document.removeEventListener("keydown", escClose); }
+function escClose(e) { if (e.key === "Escape") closeModal(); }
+function openModal(title, bodyNodes, footNodes) {
+  const root = $("#modalRoot"); root.innerHTML = "";
+  const scrim = el("div", { class: "scrim", onclick: (e) => { if (e.target === scrim) closeModal(); } });
+  const m = el("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-label": title });
+  const hd = el("div", { class: "modal-hd" });
+  hd.appendChild(el("h3", { text: title }));
+  hd.appendChild(el("button", { class: "btn btn-sm btn-ghost", text: "✕", "aria-label": "Close", onclick: closeModal }));
+  m.appendChild(hd);
+  const bd = el("div", { class: "modal-bd" });
+  bodyNodes.forEach(n => n && bd.appendChild(n));
+  m.appendChild(bd);
+  const ft = el("div", { class: "modal-ft" });
+  footNodes.forEach(n => n && ft.appendChild(n));
+  m.appendChild(ft);
+  scrim.appendChild(m);
+  root.appendChild(scrim);
+  document.addEventListener("keydown", escClose);
+  const first = m.querySelector("input,select,textarea");
+  if (first) setTimeout(() => first.focus(), 30);
+  return m;
+}
+/**
+ * In-app confirmation. Never window.confirm() — a bare Android WebView has no
+ * dialog handler and silently answers "no", and a sandboxed frame can suppress
+ * it too, which makes destructive buttons look dead.
+ */
+function confirmModal(o) {
+  const body = [el("p", { class: "confirm-text", html: o.message })];
+  const go = el("button", {
+    class: "btn " + (o.danger ? "btn-destructive" : "btn-primary"),
+    text: o.confirmLabel || "Confirm",
+    onclick: () => { closeModal(); setTimeout(() => o.onConfirm(), 0); }
+  });
+  openModal(o.title, body, [el("button", { class: "btn", text: o.cancelLabel || "Cancel", onclick: closeModal }), go]);
+}
+
+function field(labelText, control, hint) {
+  const f = el("div", { class: "field" });
+  const id = control.id || uid("f");
+  control.id = id;
+  f.appendChild(el("label", { for: id, text: labelText }));
+  f.appendChild(control);
+  if (hint) f.appendChild(el("div", { class: "hint", text: hint }));
+  return f;
+}
+
+/* ---------- contacts ----------
+ * The phone build exposes one method that opens Android's own contact
+ * picker. The app never reads the address book: the picker runs outside
+ * it and hands back only the single person tapped, which is why no
+ * contacts permission is needed. Absent in a browser — the button hides.
+ */
+function contactsAvailable() {
+  return !!(window.AndroidBridge && typeof window.AndroidBridge.pickContact === "function");
+}
+let contactPending = null;
+function pickFromContacts(cb) {
+  if (!contactsAvailable()) return;
+  contactPending = cb;
+  try { window.AndroidBridge.pickContact(); }
+  catch (e) { contactPending = null; toast("Couldn't open your contacts — type the name instead."); }
+}
+window.__contactPicked = function (nameEnc, phoneEnc) {
+  const cb = contactPending; contactPending = null;
+  if (!cb) return;
+  let name = "", phone = "";
+  try { name = decodeURIComponent(nameEnc || ""); } catch (e) { name = nameEnc || ""; }
+  try { phone = decodeURIComponent(phoneEnc || ""); } catch (e) { phone = phoneEnc || ""; }
+  name = name.trim(); phone = phone.replace(/\s+/g, " ").trim();
+  if (!name && !phone) { toast("No contact chosen"); return; }
+  cb({ name: name || phone, phone: phone });
+};
+
+/* ---------- group modal ---------- */
+function openGroupModal(existing) {
+  const isNew = !existing;
+  const g = existing ? clone(existing) : {
+    id: uid("g"), name: "", currency: "INR", members: [], createdAt: nowISO()
+  };
+  // Whoever opens a new group is in it — they shouldn't have to type themselves
+  // in. Name and number both come from the sign-in, and going in first puts
+  // them at the top of the list.
+  if (isNew) {
+    const me = myIdentity();
+    if (me && (me.name || me.mobile)) {
+      const row = { id: uid("m"), name: me.name || prettyPhone(me.mobile), updatedAt: nowISO() };
+      if (me.mobile) {
+        row.phone = me.mobile;
+        if (me.name) rememberContactName(me.mobile, me.name);
+      }
+      g.members.push(row);
+      LS.set(meKey(g.id), row.id);
+    }
+  }
+  const nameIn = el("input", { type: "text", value: g.name, placeholder: "Goa trip, Flat 4B, Sunday football…" });
+  const curSel = el("select");
+  CURRENCIES.forEach(c => curSel.appendChild(el("option", { value: c.code, text: c.label, selected: g.currency === c.code ? "selected" : null })));
+
+  const chips = el("div", { class: "memberchips" });
+  const memIn = el("input", { type: "text", placeholder: "Name", enterkeyhint: "done", autocapitalize: "words", autocomplete: "off" });
+  const memPhone = el("input", { type: "tel", inputmode: "numeric", placeholder: "Mobile number (optional)", autocomplete: "off" });
+  const memAdd = el("button", { class: "btn", type: "button", text: "Add", onclick: () => addMember() });
+  const memContacts = el("button", {
+    class: "btn", type: "button", title: "Choose from your contacts",
+    onclick: () => pickFromContacts(c => addMember(c.name, c.phone))
+  }, [iconSvg("M10.5 13.5v-1a2.5 2.5 0 0 0-2.5-2.5H4.5A2.5 2.5 0 0 0 2 12.5v1M6.25 7.5a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5M14 13.5v-1a2.5 2.5 0 0 0-1.9-2.42M10.5 3.1a2.25 2.25 0 0 1 0 4.3"), document.createTextNode("Contacts")]);
+
+  function addMember(name, phoneRaw) {
+    const typed = name === undefined;
+    const n = (typed ? memIn.value : name || "").trim();
+    const rawPhone = typed ? memPhone.value : phoneRaw;
+    const phone = normalisePhone(rawPhone, myCountryCode());
+    if (rawPhone && String(rawPhone).trim() && !phone) {
+      err.textContent = "That mobile number isn't one we recognise.";
+      return false;
+    }
+    if (!n && !phone) { memIn.focus(); return false; }
+    const label = n || prettyPhone(phone);
+
+    const live = liveMembers(g);
+    if (phone && live.some(m => m.phone === phone)) {
+      toast(label + " is already in this group."); return false;
+    }
+    if (!phone && live.some(m => (m.name || "").toLowerCase() === label.toLowerCase())) {
+      toast(label + " is already in this group."); return false;
+    }
+
+    err.textContent = "";
+    const m = { id: uid("m"), name: label, updatedAt: nowISO() };
+    if (phone) {
+      m.phone = phone;
+      // What I call this person, on this phone. Everyone else sees their own.
+      if (n) rememberContactName(phone, n);
+    }
+    g.members.push(m);
+    if (typed) { memIn.value = ""; memPhone.value = ""; memIn.focus(); }
+    drawChips();
+    return true;
+  }
+
+  function drawChips() {
+    chips.innerHTML = "";
+    const live = liveMembers(g);
+    if (!live.length) { chips.appendChild(el("span", { class: "hint", text: "No members yet." })); return; }
+    const list = el("div", { style: "width:100%" });
+    live.forEach(m => {
+      const row = el("div", { class: "memberline" });
+      row.appendChild(el("div", { class: "avatar", text: initials(displayNameFor(m)) }));
+      const info = el("div", { class: "mi" });
+      const nameRow = el("div", { class: "nm" });
+      nameRow.appendChild(document.createTextNode(displayNameFor(m)));
+      if (myPhone() && m.phone === myPhone()) nameRow.appendChild(el("span", { class: "tagme", text: "  you" }));
+      info.appendChild(nameRow);
+      info.appendChild(el("div", {
+        class: "ph",
+        text: m.phone ? prettyPhone(m.phone) : "no number — won't sync to their phone"
+      }));
+      row.appendChild(info);
+      if (contactsAvailable() && m.phone) {
+        row.appendChild(el("button", {
+          class: "btn btn-sm btn-ghost", type: "button", title: "Use a name from my contacts",
+          text: "Rename", onclick: () => pickFromContacts(c => {
+            rememberContactName(m.phone, c.name);
+            drawChips(); render();
+            toast("Shown as " + c.name + " on this phone");
+          })
+        }));
+      }
+      // You can't take yourself out of your own group — that's what deleting
+      // the group is for, and the balances would have nowhere to land.
+      const isMe = !!(myPhone() && m.phone === myPhone());
+      if (!isMe) row.appendChild(el("button", {
+        class: "btn btn-sm btn-ghost btn-danger", type: "button",
+        "aria-label": "Remove " + displayNameFor(m), text: "Remove",
+        onclick: () => {
+          const involved = currentExpenses().some(e => (e.splits || {})[m.id] || payersOf(e)[m.id]);
+          m.deleted = true; m.updatedAt = nowISO();
+          drawChips();
+          toast(involved
+            ? displayNameFor(m) + " removed — their share of past expenses stays put"
+            : displayNameFor(m) + " removed");
+        }
+      }));
+      list.appendChild(row);
+    });
+    chips.appendChild(list);
+  }
+  const err = el("div", { class: "hint", style: "color:var(--neg)" });
+  memIn.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); memPhone.focus(); } });
+  memPhone.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); addMember(); } });
+  drawChips();
+  const body = [
+    field("Group name", nameIn),
+    field("Currency", curSel, "Every amount in this group is recorded in this currency."),
+    el("div", { class: "field" }, [
+      el("label", { text: "Members" }),
+      el("div", { class: "memberrow" }, [memIn, contactsAvailable() ? memContacts : null]),
+      el("div", { class: "memberrow", style: "margin-top:8px" }, [memPhone, memAdd]),
+      el("div", {
+        class: "hint",
+        text: SYNC_ENABLED
+          ? "The mobile number is what lets someone open this group on their own phone. The name is only what YOU see — everyone sees their own contact name for each person."
+          : "Type a name and tap Add. A mobile number is optional here."
+      }),
+      chips
+    ]),
+    err
+  ];
+
+  const save = el("button", {
+    class: "btn btn-primary", text: isNew ? "Create group" : "Save changes",
+    onclick: async () => {
+      if (memIn.value.trim() || memPhone.value.trim()) {
+        if (!addMember()) return;            // don't silently drop what they typed
+      }
+      g.name = nameIn.value.trim();
+      g.currency = curSel.value;
+      if (!g.name) { err.textContent = "Give the group a name first."; nameIn.classList.add("err"); nameIn.focus(); return; }
+      if (liveMembers(g).length < 2) {
+        err.textContent = liveMembers(g).length === 1
+          ? "Add at least one other person — splitting needs someone to split with."
+          : "Add at least two members — splitting needs someone to split with.";
+        memIn.focus(); return;
+      }
+      if (isNew) g.createdAt = nowISO();
+      await saveGroup(g);
+      closeModal();
+      if (isNew) { S.groups.some(x => x.id === g.id) || S.groups.unshift(g); selectGroup(g.id); toast("Group created"); }
+      else { S.group = g; toast("Group updated"); render(); }
+    }
+  });
+  const foot = [
+    !isNew ? el("button", {
+      class: "btn btn-danger", text: "Delete group", style: "margin-right:auto",
+      onclick: () => { closeModal(); confirmDeleteGroup(existing); }
+    }) : null,
+    el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
+    save
+  ];
+  openModal(isNew ? "New group" : "Group settings", body, foot);
+}
+
+/* ---------- expense modal ---------- */
+function openExpenseModal(existing) {
+  const g = S.group;
+  if (!g || liveMembers(g).length < 2) { toast("Add at least two members first."); return; }
+  const isNew = !existing;
+  const me = myId() || liveMembers(g)[0].id;
+  const e = existing ? clone(existing) : {
+    id: uid("e"), gid: g.id, description: "", amount: 0, category: "Food & drink",
+    date: todayStr(), paidBy: me, payers: null, splitType: "equal",
+    parts: liveMembers(g).map(m => m.id), values: {}, splits: {}, createdBy: me, createdAt: nowISO()
+  };
+  if (!e.parts) e.parts = Object.keys(e.splits || {});
+  if (!e.values) e.values = {};
+
+  let multiPayer = !!(e.payers && Object.keys(e.payers).length > 1);
+  let payers = e.payers ? clone(e.payers) : (() => { const o = {}; o[e.paidBy] = e.amount; return o; })();
+
+  const descIn = el("input", { type: "text", value: e.description, placeholder: "Dinner at Toit, Uber to airport…" });
+  const amtIn = el("input", { type: "number", step: "0.01", min: "0", value: e.amount ? (e.amount / 100).toFixed(2) : "", placeholder: "0.00" });
+  const dateIn = el("input", { type: "date", value: e.date });
+  const catSel = el("select");
+  CATEGORIES.forEach(c => catSel.appendChild(el("option", { value: c, text: c, selected: e.category === c ? "selected" : null })));
+  const paidSel = el("select");
+  liveMembers(g).forEach(m => paidSel.appendChild(el("option", { value: m.id, text: displayNameFor(m) + (m.id === myId() ? " (you)" : ""), selected: e.paidBy === m.id ? "selected" : null })));
+
+  const payerBox = el("div");
+  const multiLink = el("button", { class: "btn btn-sm btn-ghost", type: "button", text: multiPayer ? "Single payer" : "Multiple people paid", onclick: () => { multiPayer = !multiPayer; multiLink.textContent = multiPayer ? "Single payer" : "Multiple people paid"; drawPayers(); recalc(); } });
+
+  function drawPayers() {
+    payerBox.innerHTML = "";
+    if (!multiPayer) { payerBox.appendChild(paidSel); return; }
+    const list = el("div", { class: "split-list" });
+    liveMembers(g).forEach(m => {
+      const row = el("div", { class: "split-row" });
+      row.appendChild(el("span", { class: "nm", text: displayNameFor(m) }));
+      const inp = el("input", { type: "number", step: "0.01", min: "0", value: payers[m.id] ? (payers[m.id] / 100).toFixed(2) : "", placeholder: "0.00" });
+      inp.addEventListener("input", () => {
+        const v = toMinor(inp.value);
+        if (v > 0) payers[m.id] = v; else delete payers[m.id];
+        recalc();
+      });
+      row.appendChild(inp);
+      list.appendChild(row);
+    });
+    const foot = el("div", { class: "split-foot", id: "payFoot" });
+    list.appendChild(foot);
+    payerBox.appendChild(list);
+  }
+
+  // split editor
+  const typeSeg = el("div", { class: "seg" });
+  SPLIT_TYPES.forEach(t => typeSeg.appendChild(el("button", {
+    type: "button", "aria-pressed": e.splitType === t.id ? "true" : "false", text: t.label,
+    onclick: () => { e.splitType = t.id; Array.from(typeSeg.children).forEach(b => b.setAttribute("aria-pressed", b.textContent === t.label ? "true" : "false")); typeHint.textContent = t.hint; drawSplits(); recalc(); }
+  })));
+  const typeHint = el("div", { class: "hint", text: (SPLIT_TYPES.find(t => t.id === e.splitType) || SPLIT_TYPES[0]).hint });
+  const splitBox = el("div");
+  const err = el("div", { class: "hint", style: "color:var(--neg)" });
+
+  function drawSplits() {
+    splitBox.innerHTML = "";
+    const list = el("div", { class: "split-list" });
+    liveMembers(g).forEach(m => {
+      const on = e.parts.indexOf(m.id) >= 0;
+      const row = el("div", { class: "split-row" + (on ? "" : " off"), "data-m": m.id });
+      const cb = el("input", { type: "checkbox", class: "chk", checked: on ? "checked" : null, "aria-label": "Include " + m.name });
+      cb.addEventListener("change", () => {
+        if (cb.checked) { if (e.parts.indexOf(m.id) < 0) e.parts.push(m.id); }
+        else e.parts = e.parts.filter(x => x !== m.id);
+        row.classList.toggle("off", !cb.checked);
+        recalc();
+      });
+      row.appendChild(cb);
+      row.appendChild(el("span", { class: "nm", text: displayNameFor(m) + (m.id === myId() ? " (you)" : "") }));
+      if (e.splitType !== "equal") {
+        const inp = el("input", {
+          type: "number", step: e.splitType === "shares" ? "1" : "0.01", min: e.splitType === "adjustment" ? null : "0",
+          value: e.values[m.id] != null && e.values[m.id] !== "" ? e.values[m.id] : "",
+          placeholder: e.splitType === "percentage" ? "%" : e.splitType === "shares" ? "1" : "0.00",
+          "data-in": m.id
+        });
+        inp.addEventListener("input", () => { e.values[m.id] = inp.value === "" ? "" : Number(inp.value); recalc(); });
+        row.appendChild(inp);
+      }
+      row.appendChild(el("span", { class: "calc", "data-calc": m.id, text: "" }));
+      list.appendChild(row);
+    });
+    const foot = el("div", { class: "split-foot" }, [el("span", { id: "splitFootL", text: "" }), el("span", { id: "splitFootR", text: "" })]);
+    list.appendChild(foot);
+    splitBox.appendChild(list);
+    const quick = el("div", { style: "display:flex;gap:8px;margin-top:8px;flex-wrap:wrap" });
+    quick.appendChild(el("button", { class: "btn btn-sm", type: "button", text: "Everyone", onclick: () => { e.parts = liveMembers(g).map(m => m.id); drawSplits(); recalc(); } }));
+    quick.appendChild(el("button", { class: "btn btn-sm", type: "button", text: "Only me", onclick: () => { e.parts = [myId() || liveMembers(g)[0].id]; drawSplits(); recalc(); } }));
+    if (e.splitType === "shares") quick.appendChild(el("button", { class: "btn btn-sm", type: "button", text: "1 share each", onclick: () => { e.parts.forEach(p => (e.values[p] = 1)); drawSplits(); recalc(); } }));
+    if (e.splitType === "percentage") quick.appendChild(el("button", {
+      class: "btn btn-sm", type: "button", text: "Even %", onclick: () => {
+        const per = Math.round((100 / Math.max(1, e.parts.length)) * 100) / 100;
+        e.parts.forEach(p => (e.values[p] = per)); drawSplits(); recalc();
+      }
+    }));
+    splitBox.appendChild(quick);
+  }
+
+  let computed = {};
+  function recalc() {
+    const amount = toMinor(amtIn.value);
+    e.amount = amount;
+    if (!multiPayer) { payers = {}; payers[paidSel.value] = amount; e.paidBy = paidSel.value; }
+    computed = computeSplits(amount, e.splitType, e.parts, e.values);
+    const assigned = Object.values(computed).reduce((a, b) => a + b, 0);
+    liveMembers(g).forEach(m => {
+      const c = splitBox.querySelector('[data-calc="' + m.id + '"]');
+      if (c) c.textContent = e.parts.indexOf(m.id) >= 0 ? fmt(computed[m.id] || 0, g.currency) : "—";
+    });
+    const L = $("#splitFootL", splitBox), R = $("#splitFootR", splitBox);
+    if (L && R) {
+      if (e.splitType === "percentage") {
+        const pct = e.parts.reduce((a, p) => a + (Number(e.values[p]) || 0), 0);
+        L.textContent = pct.toFixed(2).replace(/\.00$/, "") + "% of 100%";
+        R.textContent = Math.abs(pct - 100) < 0.01 ? "balanced" : (pct > 100 ? (pct - 100).toFixed(2) + "% over" : (100 - pct).toFixed(2) + "% left");
+        R.className = Math.abs(pct - 100) < 0.01 ? "ok" : "bad";
+      } else if (e.splitType === "shares") {
+        const tot = e.parts.reduce((a, p) => a + (Number(e.values[p]) || 0), 0);
+        L.textContent = tot + " " + (tot === 1 ? "share" : "shares") + " across " + e.parts.length;
+        R.textContent = tot > 0 ? "balanced" : "give someone a share";
+        R.className = tot > 0 ? "ok" : "bad";
+      } else {
+        L.textContent = fmt(assigned, g.currency) + " of " + fmt(amount, g.currency);
+        const diff = amount - assigned;
+        if (amount === 0) { R.textContent = "enter an amount above"; R.className = ""; }
+        else { R.textContent = diff === 0 ? "balanced" : diff > 0 ? fmt(diff, g.currency) + " left" : fmt(-diff, g.currency) + " over"; R.className = diff === 0 ? "ok" : "bad"; }
+      }
+    }
+    const pf = $("#payFoot", payerBox);
+    if (pf) {
+      const paid = Object.values(payers).reduce((a, b) => a + b, 0);
+      const diff = amount - paid;
+      pf.innerHTML = "";
+      pf.appendChild(el("span", { text: fmt(paid, g.currency) + " of " + fmt(amount, g.currency) + " covered" }));
+      pf.appendChild(el("span", { class: diff === 0 ? "ok" : "bad", text: diff === 0 ? "balanced" : diff > 0 ? fmt(diff, g.currency) + " unaccounted" : fmt(-diff, g.currency) + " over" }));
+    }
+  }
+
+  amtIn.addEventListener("input", recalc);
+  paidSel.addEventListener("change", recalc);
+
+  drawPayers(); drawSplits();
+
+  const body = [
+    field("What was it for?", descIn),
+    el("div", { class: "grid2" }, [field("Amount (" + g.currency + ")", amtIn), field("Date", dateIn)]),
+    el("div", { class: "grid2" }, [field("Category", catSel), el("div", { class: "field" }, [
+      el("label", { text: "Paid by" }), payerBox, multiLink
+    ])]),
+    el("div", { class: "field" }, [
+      el("label", { text: "How is it split?" }),
+      typeSeg, typeHint, splitBox
+    ]),
+    err
+  ];
+
+  const save = el("button", {
+    class: "btn btn-primary", text: isNew ? "Add expense" : "Save expense",
+    onclick: async () => {
+      err.textContent = "";
+      const amount = toMinor(amtIn.value);
+      if (!descIn.value.trim()) { err.textContent = "Say what the expense was for."; descIn.focus(); return; }
+      if (amount <= 0) { err.textContent = "Enter an amount above zero."; amtIn.focus(); return; }
+      if (!e.parts.length) { err.textContent = "Pick at least one person to split this between."; return; }
+      const paidTotal = Object.values(payers).reduce((a, b) => a + b, 0);
+      if (paidTotal !== amount) { err.textContent = "The payers cover " + fmt(paidTotal, g.currency) + " but the expense is " + fmt(amount, g.currency) + "."; return; }
+      computed = computeSplits(amount, e.splitType, e.parts, e.values);
+      const assigned = Object.values(computed).reduce((a, b) => a + b, 0);
+      if (assigned !== amount) {
+        err.textContent = e.splitType === "percentage"
+          ? "Percentages must add up to 100%."
+          : "The split adds up to " + fmt(assigned, g.currency) + ", not " + fmt(amount, g.currency) + ".";
+        return;
+      }
+      const rec = {
+        id: e.id, gid: g.id, description: descIn.value.trim(), amount: amount,
+        category: catSel.value, date: dateIn.value || todayStr(),
+        splitType: e.splitType, values: e.values, parts: e.parts.slice(),
+        splits: computed, payers: payers, paidBy: Object.keys(payers)[0],
+        createdBy: e.createdBy || myId() || Object.keys(payers)[0],
+        createdAt: e.createdAt || nowISO(), updatedAt: nowISO()
+      };
+      await saveExpense(rec);
+      closeModal();
+      toast(isNew ? "Expense added" : "Expense updated");
+    }
+  });
+  const foot = [
+    !isNew ? el("button", {
+      class: "btn btn-danger", style: "margin-right:auto", text: "Delete",
+      onclick: () => {
+        const label = e.description, eid = e.id;
+        closeModal();
+        confirmModal({
+          title: "Delete this expense?",
+          danger: true, confirmLabel: "Delete expense",
+          message: "<strong>" + esc(label) + "</strong> will be removed and everyone's balances recalculated.",
+          onConfirm: () => { deleteExpense(eid); toast("Expense deleted"); }
+        });
+      }
+    }) : null,
+    el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
+    save
+  ];
+  openModal(isNew ? "Add expense" : "Edit expense", body, foot);
+  recalc();
+}
+
+/* ---------- settle modal ---------- */
+function openSettleModal(pref) {
+  const g = S.group;
+  if (!g || liveMembers(g).length < 2) { toast("Add members first."); return; }
+  const me = myId() || liveMembers(g)[0].id;
+  const net = netBalances(liveMembers(g), currentExpenses(), currentSettlements());
+  const suggested = simplifyDebts(net);
+  const d = pref || suggested.find(s => s.from === me) || suggested[0] || { from: me, to: liveMembers(g).find(m => m.id !== me).id, amount: 0 };
+
+  const fromSel = el("select");
+  const toSel = el("select");
+  liveMembers(g).forEach(m => {
+    fromSel.appendChild(el("option", { value: m.id, text: displayNameFor(m) + (m.id === myId() ? " (you)" : ""), selected: d.from === m.id ? "selected" : null }));
+    toSel.appendChild(el("option", { value: m.id, text: displayNameFor(m) + (m.id === myId() ? " (you)" : ""), selected: d.to === m.id ? "selected" : null }));
+  });
+  const amtIn = el("input", { type: "number", step: "0.01", min: "0", value: d.amount ? (d.amount / 100).toFixed(2) : "" });
+  const dateIn = el("input", { type: "date", value: todayStr() });
+  const methodSel = el("select");
+  ["Cash", "UPI", "Bank transfer", "Card", "Wallet", "Other"].forEach(m => methodSel.appendChild(el("option", { value: m, text: m })));
+  const noteIn = el("input", { type: "text", placeholder: "Optional note" });
+  const err = el("div", { class: "hint", style: "color:var(--neg)" });
+
+  const outstanding = el("div", { class: "hint" });
+  function updateOutstanding() {
+    const pair = pairwiseDebts(liveMembers(g), currentExpenses(), currentSettlements())
+      .find(x => x.from === fromSel.value && x.to === toSel.value);
+    outstanding.textContent = pair
+      ? memberName(fromSel.value) + " currently owes " + memberName(toSel.value) + " " + fmt(pair.amount, g.currency) + "."
+      : "No outstanding debt between these two right now — you can still record a payment.";
+  }
+  fromSel.addEventListener("change", updateOutstanding);
+  toSel.addEventListener("change", updateOutstanding);
+  updateOutstanding();
+
+  const body = [
+    el("div", { class: "grid2" }, [field("Who paid", fromSel), field("Who received", toSel)]),
+    outstanding,
+    el("div", { class: "grid2" }, [field("Amount (" + g.currency + ")", amtIn), field("Date", dateIn)]),
+    el("div", { class: "grid2" }, [field("Method", methodSel), field("Note", noteIn)]),
+    err
+  ];
+  const save = el("button", {
+    class: "btn btn-primary", text: "Record payment",
+    onclick: async () => {
+      err.textContent = "";
+      const amount = toMinor(amtIn.value);
+      if (fromSel.value === toSel.value) { err.textContent = "Pick two different people."; return; }
+      if (amount <= 0) { err.textContent = "Enter an amount above zero."; amtIn.focus(); return; }
+      await saveSettlement({
+        id: uid("s"), gid: g.id, from: fromSel.value, to: toSel.value, amount: amount,
+        date: dateIn.value || todayStr(), method: methodSel.value, note: noteIn.value.trim(),
+        createdBy: myId() || fromSel.value, createdAt: nowISO()
+      });
+      closeModal();
+      toast("Payment recorded");
+    }
+  });
+  openModal("Settle up", body, [el("button", { class: "btn", text: "Cancel", onclick: closeModal }), save]);
+}
+
+/* ==========================================================
+   8. Identity, contact names, and sync
+
+   Your mobile number is the account. A group member is identified by their
+   number too — but the NAME shown is whatever YOU have that number saved as,
+   so two people in the same group can each see their own names for everybody.
+   The number travels; the name stays on your phone.
+   ========================================================== */
+const SYNC_ENABLED = false;          // the phone build turns this on
+const COUNTRY_CODES = [
+  ["+91", "IN +91"], ["+1", "US +1"], ["+44", "UK +44"], ["+971", "AE +971"],
+  ["+65", "SG +65"], ["+61", "AU +61"], ["+49", "DE +49"], ["+81", "JP +81"]
+];
+
+/** Mirrors app/phone.py on the server — both ends must agree exactly, or the
+ *  same person ends up with two accounts. */
+function normalisePhone(raw, defaultCC) {
+  if (raw === null || raw === undefined) return null;
+  let s = String(raw).trim();
+  if (!s) return null;
+  s = s.replace(/[^\d+]/g, "");
+  if (!s) return null;
+  if ((s.match(/\+/g) || []).length > 1) return null;
+  if (s.indexOf("+") > 0) return null;
+  if (s.slice(0, 2) === "00") s = "+" + s.slice(2);
+  if (s[0] !== "+") {
+    let cc = String(defaultCC || "+91").replace(/[^\d+]/g, "");
+    if (cc[0] !== "+") cc = "+" + cc.replace(/^\++/, "");
+    const digits = s.replace(/^0+/, "");
+    if (!digits) return null;
+    s = cc + digits;
+  }
+  return /^\+[1-9]\d{7,14}$/.test(s) ? s : null;
+}
+function prettyPhone(e164) {
+  if (!e164) return "";
+  if (e164.slice(0, 3) === "+91" && e164.length === 13) {
+    return "+91 " + e164.slice(3, 8) + " " + e164.slice(8);
+  }
+  return e164;
+}
+
+function myIdentity() { return LS.get("sl.identity", null); }
+function myPhone() { const i = myIdentity(); return i ? i.mobile : null; }
+
+/* ---------- per-viewer contact names ---------- */
+function contactBook() { return LS.get("sl.contactNames", {}); }
+function rememberContactName(phone, name) {
+  if (!phone || !name) return;
+  const book = contactBook();
+  book[phone] = String(name).slice(0, 120);
+  LS.set("sl.contactNames", book);
+}
+/** What THIS phone calls that person. Your address book wins; the name the
+ *  group's creator typed is the fallback. */
+function displayNameFor(m) {
+  if (!m) return "Someone";
+  if (m.phone) {
+    const mine = contactBook()[m.phone];
+    if (mine) return mine;
+    if (myPhone() && m.phone === myPhone()) {
+      const id = myIdentity();
+      if (id && id.name) return id.name;
+    }
+  }
+  return m.name || prettyPhone(m.phone) || "Member";
+}
+
+/* ---------- sync ---------- */
+const SYNC = { state: "off", error: "", at: 0, timer: null, running: false };
+function serverUrl() { return String(LS.get("sl.server", "") || "").replace(/\/+$/, ""); }
+function syncSeq() { return LS.get("sl.syncSeq", 0) || 0; }
+function dirtySet() { return LS.get("sl.dirty", { groups: [], expenses: [], settlements: [] }); }
+function markDirty(kind, id) {
+  if (!SYNC_ENABLED || !id) return;
+  const d = dirtySet();
+  if (!d[kind]) d[kind] = [];
+  if (d[kind].indexOf(id) < 0) d[kind].push(id);
+  LS.set("sl.dirty", d);
+  scheduleSync(1200);
+}
+function setSyncState(state, error) {
+  SYNC.state = state; SYNC.error = error || "";
+  if (state === "ok") SYNC.at = Date.now();
+  const bar = $("#syncBar");
+  if (bar) drawSyncBar();
+}
+function scheduleSync(ms) {
+  if (!SYNC_ENABLED || !serverUrl() || !myIdentity()) return;
+  clearTimeout(SYNC.timer);
+  SYNC.timer = setTimeout(() => syncNow(false), ms || 1200);
+}
+
+async function api(path, body, opts) {
+  opts = opts || {};
+  const base = serverUrl();
+  if (!base) throw new Error("no-server");
+  const id = myIdentity();
+  const headers = { "Content-Type": "application/json" };
+  if (id && id.accessToken && !opts.noAuth) headers["Authorization"] = "Bearer " + id.accessToken;
+  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const t = ctl ? setTimeout(() => ctl.abort(), 20000) : null;
+  let res;
+  try {
+    res = await fetch(base + path, {
+      method: "POST", headers: headers, body: JSON.stringify(body || {}),
+      signal: ctl ? ctl.signal : undefined
+    });
+  } catch (e) {
+    if (t) clearTimeout(t);
+    throw new Error("offline");
+  }
+  if (t) clearTimeout(t);
+
+  if (res.status === 401 && !opts.noAuth && !opts.retried && id && id.refreshToken) {
+    const ok = await refreshSession();
+    if (ok) return api(path, body, Object.assign({}, opts, { retried: true }));
+    throw new Error("signed-out");
+  }
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (!res.ok) {
+    const msg = (data && data.message) || ("Server said " + res.status);
+    const err = new Error(msg); err.status = res.status; throw err;
+  }
+  return data;
+}
+
+async function refreshSession() {
+  const id = myIdentity();
+  if (!id || !id.refreshToken) return false;
+  try {
+    const base = serverUrl();
+    const res = await fetch(base + "/auth/refresh-token", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: id.refreshToken })
+    });
+    if (!res.ok) return false;
+    const d = await res.json();
+    id.accessToken = d.access_token; id.refreshToken = d.refresh_token;
+    id.userId = d.user.id;
+    LS.set("sl.identity", id);
+    return true;
+  } catch (e) { return false; }
+}
+
+/** Groups that are allowed to leave this phone. The built-in sample never is. */
+function syncableGroups() { return S.groups.filter(g => !g.sample && !g.localOnly); }
+
+function buildPush() {
+  const d = dirtySet();
+  const out = { groups: [], members: [], expenses: [], settlements: [] };
+  const skipped = { groups: [], expenses: [], settlements: [] };
+  const gById = {};
+  syncableGroups().forEach(g => (gById[g.id] = g));
+
+  (d.groups || []).forEach(gid => {
+    const g = gById[gid];
+    if (!g) { skipped.groups.push(gid); return; }   // gone, or a local-only group
+    out.groups.push({
+      id: g.id, name: g.name, currency: g.currency || "INR",
+      deleted: !!g.deleted, updated_at: g.updatedAt || nowISO()
+    });
+    (g.members || []).forEach(m => out.members.push({
+      id: m.id, group_id: g.id, name: m.name || "", phone: m.phone || null,
+      role: m.role || "member", deleted: !!m.deleted,
+      updated_at: m.updatedAt || g.updatedAt || nowISO()
+    }));
+  });
+  (d.expenses || []).forEach(eid => {
+    const e = S.expenses.find(x => x.id === eid);
+    if (!e || !gById[e.gid]) { skipped.expenses.push(eid); return; }
+    out.expenses.push({
+      id: e.id, group_id: e.gid, description: e.description || "",
+      amount_minor: e.amount || 0, currency: (gById[e.gid].currency) || "INR",
+      category: e.category || "Other", expense_date: e.date,
+      split_type: e.splitType || "equal", paid_by: e.paidBy || null,
+      payers: e.payers || {}, splits: e.splits || {}, values: e.values || {},
+      deleted: !!e.deleted, updated_at: e.updatedAt || nowISO()
+    });
+  });
+  (d.settlements || []).forEach(sid => {
+    const s = S.settlements.find(x => x.id === sid);
+    if (!s || !gById[s.gid]) { skipped.settlements.push(sid); return; }
+    out.settlements.push({
+      id: s.id, group_id: s.gid, from_member: s.from, to_member: s.to,
+      amount_minor: s.amount || 0, currency: (gById[s.gid].currency) || "INR",
+      method: s.method || null, note: s.note || null,
+      settled_date: s.date, deleted: !!s.deleted,
+      updated_at: s.updatedAt || nowISO()
+    });
+  });
+  out.__skipped = skipped;
+  return out;
+}
+
+function applyPull(data) {
+  let changed = false;
+  (data.groups || []).forEach(row => {
+    let g = S.groups.find(x => x.id === row.id);
+    if (!g) {
+      g = { id: row.id, members: [], createdAt: row.updated_at };
+      S.groups.push(g);
+    }
+    g.name = row.name; g.currency = row.currency;
+    g.deleted = !!row.deleted; g.updatedAt = row.updated_at;
+    changed = true;
+  });
+  (data.members || []).forEach(row => {
+    const g = S.groups.find(x => x.id === row.group_id);
+    if (!g) return;
+    if (!g.members) g.members = [];
+    let m = g.members.find(x => x.id === row.id);
+    if (!m) { m = { id: row.id }; g.members.push(m); }
+    m.name = row.name;
+    m.phone = row.phone || null;
+    m.userId = row.user_id || null;
+    m.role = row.role;
+    m.deleted = !!row.deleted;
+    m.updatedAt = row.updated_at;
+    changed = true;
+  });
+  (data.expenses || []).forEach(row => {
+    let e = S.expenses.find(x => x.id === row.id);
+    if (!e) { e = { id: row.id }; S.expenses.push(e); }
+    e.gid = row.group_id; e.description = row.description; e.amount = row.amount_minor;
+    e.category = row.category; e.date = row.expense_date; e.splitType = row.split_type;
+    e.paidBy = row.paid_by; e.payers = row.payers || {}; e.splits = row.splits || {};
+    e.values = row.values || {}; e.deleted = !!row.deleted; e.updatedAt = row.updated_at;
+    changed = true;
+  });
+  (data.settlements || []).forEach(row => {
+    let s = S.settlements.find(x => x.id === row.id);
+    if (!s) { s = { id: row.id }; S.settlements.push(s); }
+    s.gid = row.group_id; s.from = row.from_member; s.to = row.to_member;
+    s.amount = row.amount_minor; s.method = row.method; s.note = row.note;
+    s.date = row.settled_date; s.deleted = !!row.deleted; s.updatedAt = row.updated_at;
+    changed = true;
+  });
+  return changed;
+}
+
+/** Remove only what this round actually sent.
+ *  Anything marked dirty while the request was in flight must survive, or the
+ *  change is silently dropped and never sent again. */
+function clearPushed(push) {
+  const skipped = push.__skipped || { groups: [], expenses: [], settlements: [] };
+  const done = {
+    groups: new Set(push.groups.map(x => x.id).concat(skipped.groups)),
+    expenses: new Set(push.expenses.map(x => x.id).concat(skipped.expenses)),
+    settlements: new Set(push.settlements.map(x => x.id).concat(skipped.settlements))
+  };
+  const d = dirtySet();
+  ["groups", "expenses", "settlements"].forEach(k => {
+    d[k] = (d[k] || []).filter(id => !done[k].has(id));
+  });
+  LS.set("sl.dirty", d);
+  return d.groups.length + d.expenses.length + d.settlements.length;
+}
+
+async function syncNow(manual) {
+  if (!SYNC_ENABLED) return false;
+  if (SYNC.running) { scheduleSync(1500); return false; }   // come back, don't just drop it
+  if (!myIdentity()) { setSyncState("off"); return false; }
+  if (!serverUrl()) { setSyncState("local"); return false; }
+  SYNC.running = true;
+  setSyncState("busy");
+  try {
+    const push = buildPush();
+    const wire = { groups: push.groups, members: push.members,
+                   expenses: push.expenses, settlements: push.settlements };
+    const data = await api("/sync", { since: syncSeq(), changes: wire });
+    const changed = applyPull(data);
+    LS.set("sl.syncSeq", data.seq || syncSeq());
+    const stillDirty = clearPushed(push);
+    if (stillDirty) scheduleSync(800);       // edits made during the request
+    localSave();
+    if (data.rejected && data.rejected.length) {
+      toast(data.rejected.length + " change" + (data.rejected.length === 1 ? "" : "s") + " refused — you're not in that group");
+    }
+    setSyncState("ok");
+    if (changed) {
+      const current = S.groups.find(g => g.id === S.gid && !g.deleted);
+      // Land on a real group. Sitting on the built-in sample after a sync
+      // means anything you add goes into demo data that never leaves the phone.
+      const onSample = !current || current.sample;
+      if (onSample) {
+        const real = S.groups.filter(g => !g.deleted && !g.sample);
+        const pick = real.length ? real[real.length - 1] : S.groups.find(g => !g.deleted);
+        S.gid = pick ? pick.id : null;
+        LS.set("sl.lastGroup", S.gid);
+      }
+      S.group = S.groups.find(g => g.id === S.gid) || null;
+      render();
+    } else { drawSyncBar(); }
+    SYNC.running = false;
+    return true;
+  } catch (e) {
+    SYNC.running = false;
+    const m = e && e.message;
+    if (m === "offline") setSyncState("offline");
+    else if (m === "signed-out") { setSyncState("err", "Sign in again"); }
+    else setSyncState("err", m || "Sync failed");
+    if (manual) toast(SYNC.state === "offline" ? "No connection — changes are saved here and will sync later" : (SYNC.error || "Sync failed"));
+    return false;
+  }
+}
+
+/* ---------- sign in ---------- */
+async function signIn(mobile, name) {
+  const base = serverUrl();
+  const local = { mobile: mobile, name: name, userId: null, accessToken: null, refreshToken: null };
+  if (!base) { LS.set("sl.identity", local); return { ok: true, offline: true }; }
+  try {
+    const d = await api("/auth/sign-in", {
+      mobile_number: mobile, name: name,
+      platform: "android", device_information: (navigator.userAgent || "").slice(0, 160)
+    }, { noAuth: true });
+    LS.set("sl.identity", {
+      mobile: d.user.mobile_number, name: d.user.name, userId: d.user.id,
+      accessToken: d.access_token, refreshToken: d.refresh_token
+    });
+    return { ok: true, created: d.created };
+  } catch (e) {
+    if (e.message === "offline") { LS.set("sl.identity", local); return { ok: true, offline: true }; }
+    return { ok: false, error: e.message || "Could not sign in" };
+  }
+}
+
+async function signOut() {
+  try { if (serverUrl() && myIdentity() && myIdentity().accessToken) await api("/auth/logout", {}); }
+  catch (e) { /* signing out locally matters more than telling the server */ }
+  LS.set("sl.identity", null);
+  LS.set("sl.syncSeq", 0);
+  LS.set("sl.dirty", { groups: [], expenses: [], settlements: [] });
+}
+
+/* ---------- sign-in screen ---------- */
+function myCountryCode() { return LS.get("sl.cc", "+91") || "+91"; }
+
+function showAuth() {
+  const cc = $("#authCC");
+  if (cc && !cc.options.length) {
+    COUNTRY_CODES.forEach(([code, label]) =>
+      cc.appendChild(el("option", { value: code, text: label })));
+  }
+  const id = myIdentity();
+  cc.value = myCountryCode();
+  if (id) {
+    $("#authName").value = id.name || "";
+    const digits = (id.mobile || "").replace(cc.value, "");
+    $("#authPhone").value = digits;
+  }
+  $("#authErr").textContent = "";
+  $("#authNote").textContent = serverUrl()
+    ? "Syncing with " + serverUrl()
+    : "No server set yet — the app works on its own, and you can add one later to share groups.";
+  $("#authScreen").hidden = false;
+  document.body.style.overflow = "hidden";
+  setTimeout(() => $("#authPhone").focus(), 60);
+}
+function hideAuth() {
+  $("#authScreen").hidden = true;
+  document.body.style.overflow = "";
+}
+
+async function submitAuth() {
+  const err = $("#authErr");
+  const cc = $("#authCC").value;
+  const mobile = normalisePhone($("#authPhone").value, cc);
+  const name = $("#authName").value.trim();
+  if (!mobile) { err.textContent = "Check that mobile number."; $("#authPhone").focus(); return; }
+  if (!name) { err.textContent = "What should people see you as?"; $("#authName").focus(); return; }
+
+  LS.set("sl.cc", cc);
+  const btn = $("#authGo");
+  btn.disabled = true; btn.textContent = "Signing in…";
+  err.textContent = "";
+  const res = await signIn(mobile, name);
+  btn.disabled = false; btn.textContent = "Continue";
+  if (!res.ok) { err.textContent = res.error; return; }
+
+  rememberContactName(mobile, name);      // I am in my own address book
+  hideAuth();
+  if (res.offline && serverUrl()) toast("Signed in on this phone — will reach the server when you're online");
+  afterSignIn();
+}
+
+/** What happens once there is an identity: lock setup, then a first sync. */
+function afterSignIn() {
+  render();
+  if (LOCK_ENABLED && !lockIsSet() && !LS.get("sl.lockSkipped", false)) showLock("setup");
+  scheduleSync(400);
+}
+
+/* ---------- server settings ---------- */
+function drawSyncBar() {
+  const bar = $("#syncBar");
+  if (!bar || !SYNC_ENABLED) return;
+  bar.hidden = false;
+  bar.innerHTML = "";
+  const map = {
+    ok: ["ok", "Synced"], busy: ["busy", "Syncing…"], offline: ["off", "Offline — saved here"],
+    err: ["err", SYNC.error || "Sync problem"], local: ["off", "This phone only"], off: ["off", "Not signed in"]
+  };
+  const [cls, label] = map[SYNC.state] || map.off;
+  bar.appendChild(el("span", { class: "syncdot " + cls }));
+  bar.appendChild(el("span", { text: label, style: "flex:1" }));
+  bar.appendChild(el("button", {
+    class: "btn btn-sm btn-ghost", text: "Account", onclick: openAccountModal
+  }));
+}
+
+function openAccountModal() {
+  const id = myIdentity();
+  const urlIn = el("input", { type: "url", inputmode: "url", autocapitalize: "off",
+    autocomplete: "off", placeholder: "https://your-server.example.com", value: serverUrl() });
+  const note = el("div", { class: "hint" });
+  const warn = el("div", { class: "hint", style: "color:var(--gold)" });
+
+  function checkUrl() {
+    const v = urlIn.value.trim();
+    warn.textContent = "";
+    if (!v) return;
+    if (/^http:\/\//i.test(v) && !/^http:\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/i.test(v)) {
+      warn.textContent = "That's a plain http:// address on the open internet — anyone on the network can read what the app sends. Use https:// unless it's your own LAN.";
+    }
+  }
+  urlIn.addEventListener("input", checkUrl);
+  checkUrl();
+
+  const body = [
+    el("div", { class: "field" }, [
+      el("label", { text: "Signed in as" }),
+      el("p", { class: "confirm-text", html: id
+        ? "<strong>" + esc(id.name) + "</strong><br>" + esc(prettyPhone(id.mobile))
+        : "Not signed in." })
+    ]),
+    field("Sync server", urlIn,
+      "The address of your Split Ledger server. Leave it empty to keep everything on this phone."),
+    warn, note
+  ];
+
+  const save = el("button", {
+    class: "btn btn-primary", text: "Save", onclick: async () => {
+      const v = urlIn.value.trim().replace(/\/+$/, "");
+      LS.set("sl.server", v);
+      note.textContent = v ? "Checking…" : "Sync turned off.";
+      if (!v) { LS.set("sl.syncSeq", 0); setSyncState("local"); closeModal(); render(); return; }
+      const cur = myIdentity();
+      if (cur && !cur.accessToken) {
+        const res = await signIn(cur.mobile, cur.name);
+        if (!res.ok) { note.textContent = res.error; return; }
+      }
+      const ok = await syncNow(true);
+      if (ok) { closeModal(); toast("Connected — your groups are syncing"); }
+      else { note.textContent = SYNC.error || "Couldn't reach that server."; }
+    }
+  });
+  const out = el("button", {
+    class: "btn btn-danger", style: "margin-right:auto", text: "Sign out",
+    onclick: () => {
+      closeModal();
+      confirmModal({
+        title: "Sign out?",
+        danger: true, confirmLabel: "Sign out",
+        message: "Groups that have synced stay on the server and come back when you sign in again. Anything that hasn't synced yet is still on this phone.",
+        onConfirm: async () => { await signOut(); render(); showAuth(); }
+      });
+    }
+  });
+  openModal("Account & sync", body,
+    [id ? out : null, el("button", { class: "btn", text: "Close", onclick: closeModal }), save]);
+}
+
+/* ==========================================================
+   10. Passcode lock
+   The phone build turns this on. Everything here runs locally —
+   the passcode never leaves the device and is never stored in the
+   clear. WebView pages served from file:// are not a secure
+   context, so crypto.subtle is unavailable and SHA-256 is done in
+   plain JS.
+   ========================================================== */
+const LOCK_ENABLED = false;
+const LOCK_ITER = 25000, LOCK_MAXFAIL = 5, LOCK_COOLDOWN_MS = 30000, LOCK_IDLE_MS = 120000;
+
+const K256 = [
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+
+function sha256(data) {
+  let h = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  const len = data.length, bitLenHi = Math.floor(len / 536870912), bitLenLo = (len * 8) >>> 0;
+  const buf = new Uint8Array((Math.ceil((len + 9) / 64)) * 64);
+  buf.set(data); buf[len] = 0x80;
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(buf.length - 8, bitLenHi);
+  dv.setUint32(buf.length - 4, bitLenLo);
+  const w = new Uint32Array(64);
+  for (let i = 0; i < buf.length; i += 64) {
+    for (let j = 0; j < 16; j++) w[j] = dv.getUint32(i + j * 4);
+    for (let j = 16; j < 64; j++) {
+      const a = w[j - 15], b = w[j - 2];
+      const s0 = ((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3);
+      const s1 = ((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10);
+      w[j] = (w[j - 16] + s0 + w[j - 7] + s1) >>> 0;
+    }
+    let A = h[0], B = h[1], C = h[2], D = h[3], E = h[4], F = h[5], G = h[6], H = h[7];
+    for (let j = 0; j < 64; j++) {
+      const S1 = ((E >>> 6) | (E << 26)) ^ ((E >>> 11) | (E << 21)) ^ ((E >>> 25) | (E << 7));
+      const ch = (E & F) ^ (~E & G);
+      const t1 = (H + S1 + ch + K256[j] + w[j]) >>> 0;
+      const S0 = ((A >>> 2) | (A << 30)) ^ ((A >>> 13) | (A << 19)) ^ ((A >>> 22) | (A << 10));
+      const maj = (A & B) ^ (A & C) ^ (B & C);
+      const t2 = (S0 + maj) >>> 0;
+      H = G; G = F; F = E; E = (D + t1) >>> 0; D = C; C = B; B = A; A = (t1 + t2) >>> 0;
+    }
+    h = [(h[0] + A) >>> 0, (h[1] + B) >>> 0, (h[2] + C) >>> 0, (h[3] + D) >>> 0,
+    (h[4] + E) >>> 0, (h[5] + F) >>> 0, (h[6] + G) >>> 0, (h[7] + H) >>> 0];
+  }
+  const out = new Uint8Array(32), odv = new DataView(out.buffer);
+  for (let i = 0; i < 8; i++) odv.setUint32(i * 4, h[i]);
+  return out;
+}
+function utf8(s) {
+  const o = [];
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x80) o.push(c);
+    else if (c < 0x800) o.push(0xc0 | (c >> 6), 0x80 | (c & 63));
+    else if (c >= 0xd800 && c < 0xdc00 && i + 1 < s.length) {
+      const cp = 0x10000 + ((c - 0xd800) << 10) + (s.charCodeAt(++i) - 0xdc00);
+      o.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+    } else o.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+  }
+  return new Uint8Array(o);
+}
+function toHex(b) { let s = ""; for (let i = 0; i < b.length; i++) s += (b[i] < 16 ? "0" : "") + b[i].toString(16); return s; }
+function derivePin(pin, salt, iter) {
+  let d = sha256(utf8(salt + ":" + pin));
+  for (let i = 1; i < iter; i++) d = sha256(d);
+  return toHex(d);
+}
+function randomSalt() {
+  const b = new Uint8Array(16);
+  if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(b);
+  else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  return toHex(b);
+}
+
+const LOCK = {
+  state: null,       // "setup" | "confirm" | "locked" | null
+  firstPin: "",
+  fails: 0,
+  until: 0,
+  onDone: null,
+  timer: null
+};
+function lockRecord() { return LS.get("sl.lock", null); }
+function lockIsSet() { return !!(lockRecord() && lockRecord().hash); }
+
+function showLock(mode, onDone) {
+  LOCK.state = mode; LOCK.firstPin = ""; LOCK.onDone = onDone || null;
+  $("#lockScreen").hidden = false;
+  document.body.style.overflow = "hidden";
+  drawLock();
+}
+function hideLock() {
+  LOCK.state = null;
+  $("#lockScreen").hidden = true;
+  document.body.style.overflow = "";
+  clearInterval(LOCK.timer); LOCK.timer = null;
+}
+
+function drawLock() {
+  const title = $("#lockTitle"), sub = $("#lockSub"), acts = $("#lockActions");
+  $("#lockErr").textContent = "";
+  acts.innerHTML = "";
+  if (LOCK.state === "setup") {
+    title.textContent = "Create a passcode";
+    sub.textContent = "Four digits, asked for each time you open Split Ledger. It stays on this phone.";
+  } else if (LOCK.state === "confirm") {
+    title.textContent = "Confirm your passcode";
+    sub.textContent = "Enter the same four digits again.";
+  } else {
+    title.textContent = "Enter your passcode";
+    sub.textContent = "Split Ledger is locked.";
+  }
+  buildPin();
+  if (LOCK.state === "setup") {
+    acts.appendChild(el("p", { class: "lock-note", text: "There's no way to recover a forgotten passcode — the app's data is only on this phone. Keep a backup if it matters." }));
+    acts.appendChild(el("button", { class: "lock-link", text: "Not now", onclick: () => { LS.set("sl.lockSkipped", true); hideLock(); render(); } }));
+  } else if (LOCK.state === "locked") {
+    acts.appendChild(el("button", {
+      class: "lock-link", text: "Forgot your passcode?",
+      onclick: () => {
+        $("#lockScreen").hidden = true;
+        confirmModal({
+          title: "Erase and start over?",
+          danger: true, confirmLabel: "Erase everything",
+          message: "A passcode can't be recovered — it isn't stored anywhere, only a scrambled check of it is.\n\nThe only way back in is to erase this app's data: <strong>every group, expense and payment on this phone</strong>. If you have a backup you can restore it afterwards.",
+          onConfirm: () => { try { localStorage.clear(); } catch (e) { } location.reload(); }
+        });
+        const scrim = $(".scrim");
+        if (scrim) scrim.addEventListener("click", () => { if (!$(".modal")) $("#lockScreen").hidden = false; });
+        const restore = () => { if (!$("#modalRoot").innerHTML) { $("#lockScreen").hidden = false; document.removeEventListener("click", restore, true); } };
+        setTimeout(() => document.addEventListener("click", restore, true), 0);
+      }
+    }));
+  }
+}
+
+function buildPin() {
+  const box = $("#pinBoxes"); box.innerHTML = ""; box.className = "pin";
+  for (let i = 0; i < 4; i++) {
+    const inp = el("input", {
+      type: "tel", inputmode: "numeric", maxlength: "1", id: "pin" + i,
+      autocomplete: "off", "aria-label": "Passcode digit " + (i + 1)
+    });
+    inp.addEventListener("input", () => {
+      inp.value = inp.value.replace(/\D/g, "").slice(0, 1);
+      inp.classList.toggle("filled", !!inp.value);
+      box.classList.remove("bad");
+      if (inp.value && i < 3) $("#pin" + (i + 1)).focus();
+      maybeSubmitPin();
+    });
+    inp.addEventListener("keydown", ev => {
+      if (ev.key === "Backspace" && !inp.value && i > 0) { ev.preventDefault(); const p = $("#pin" + (i - 1)); p.value = ""; p.classList.remove("filled"); p.focus(); }
+    });
+    inp.addEventListener("paste", ev => {
+      const t = (ev.clipboardData || window.clipboardData).getData("text").replace(/\D/g, "").slice(0, 4);
+      if (!t) return;
+      ev.preventDefault();
+      for (let k = 0; k < 4; k++) { const b = $("#pin" + k); b.value = t[k] || ""; b.classList.toggle("filled", !!b.value); }
+      maybeSubmitPin();
+    });
+    box.appendChild(inp);
+  }
+  setTimeout(() => { const f = $("#pin0"); if (f) f.focus(); }, 60);
+}
+function readPin() { let s = ""; for (let i = 0; i < 4; i++) s += ($("#pin" + i) || {}).value || ""; return s; }
+function clearPin(bad) {
+  const box = $("#pinBoxes");
+  if (bad) { box.classList.add("bad"); setTimeout(() => box.classList.remove("bad"), 400); }
+  for (let i = 0; i < 4; i++) { const b = $("#pin" + i); if (b) { b.value = ""; b.classList.remove("filled"); } }
+  setTimeout(() => { const f = $("#pin0"); if (f) f.focus(); }, bad ? 420 : 0);
+}
+function pinBusy(on) {
+  for (let i = 0; i < 4; i++) { const b = $("#pin" + i); if (b) b.disabled = on; }
+}
+
+function maybeSubmitPin() {
+  const pin = readPin();
+  if (pin.length < 4) return;
+  if (Date.now() < LOCK.until) return;
+  pinBusy(true);
+  // let the browser paint the last digit before the hash blocks the thread
+  setTimeout(() => {
+    submitPin(pin);
+    if (Date.now() >= LOCK.until) pinBusy(false);   // a cooldown must stay disabled
+  }, 30);
+}
+
+function submitPin(pin) {
+  const err = $("#lockErr");
+  if (LOCK.state === "setup") {
+    LOCK.firstPin = pin; LOCK.state = "confirm"; drawLock(); return;
+  }
+  if (LOCK.state === "confirm") {
+    if (pin !== LOCK.firstPin) {
+      LOCK.state = "setup"; LOCK.firstPin = "";
+      drawLock();                                   // drawLock clears the error, so set it after
+      $("#lockErr").textContent = "Those didn't match. Start again.";
+      clearPin(true);
+      return;
+    }
+    const salt = randomSalt();
+    LS.set("sl.lock", { v: 1, salt: salt, iter: LOCK_ITER, hash: derivePin(pin, salt, LOCK_ITER) });
+    LS.set("sl.lockSkipped", false);
+    hideLock(); render(); toast("Passcode set");
+    if (LOCK.onDone) LOCK.onDone();
+    return;
+  }
+  // unlocking
+  const rec = lockRecord();
+  if (!rec) { hideLock(); render(); return; }
+  if (derivePin(pin, rec.salt, rec.iter || LOCK_ITER) === rec.hash) {
+    LOCK.fails = 0;
+    hideLock(); render();
+    scheduleSync(300);
+    if (LOCK.onDone) { const d = LOCK.onDone; LOCK.onDone = null; d(); }
+    return;
+  }
+  LOCK.fails++;
+  clearPin(true);
+  const left = LOCK_MAXFAIL - LOCK.fails;
+  if (left <= 0) {
+    LOCK.until = Date.now() + LOCK_COOLDOWN_MS;
+    LOCK.fails = 0;
+    startCooldown();
+  } else {
+    err.textContent = "Wrong passcode — " + left + " " + (left === 1 ? "try" : "tries") + " left.";
+  }
+}
+function startCooldown() {
+  pinBusy(true);
+  clearInterval(LOCK.timer);
+  const tick = () => {
+    const s = Math.ceil((LOCK.until - Date.now()) / 1000);
+    if (s <= 0) {
+      clearInterval(LOCK.timer); LOCK.timer = null;
+      $("#lockErr").textContent = ""; pinBusy(false); clearPin(false);
+      return;
+    }
+    $("#lockErr").textContent = "Too many attempts. Try again in " + s + "s.";
+  };
+  tick();
+  LOCK.timer = setInterval(tick, 1000);
+}
+
+/** Lock now, or set one up if there isn't one. */
+function lockNow() {
+  if (!lockIsSet()) { showLock("setup"); return; }
+  showLock("locked");
+}
+function openLockSettings() {
+  const set = lockIsSet();
+  const body = [el("p", {
+    class: "confirm-text",
+    html: set
+      ? "Split Ledger asks for your four-digit passcode each time you open it, and again after two minutes in the background."
+      : "You can set a four-digit passcode. It's asked for each time you open Split Ledger, and it never leaves this phone."
+  })];
+  const acts = [];
+  if (set) {
+    acts.push(el("button", { class: "btn", text: "Change passcode", onclick: () => { closeModal(); setTimeout(() => showLock("setup"), 60); } }));
+    acts.push(el("button", {
+      class: "btn btn-danger", text: "Turn off", onclick: () => {
+        closeModal();
+        confirmModal({
+          title: "Turn off the passcode?",
+          danger: true, confirmLabel: "Turn it off",
+          message: "Anyone who picks up this phone will be able to open Split Ledger and see every group and expense in it.",
+          onConfirm: () => { LS.set("sl.lock", null); LS.set("sl.lockSkipped", true); toast("Passcode turned off"); }
+        });
+      }
+    }));
+    acts.push(el("button", { class: "btn btn-primary", text: "Lock now", onclick: () => { closeModal(); setTimeout(() => showLock("locked"), 60); } }));
+  } else {
+    acts.push(el("button", { class: "btn", text: "Cancel", onclick: closeModal }));
+    acts.push(el("button", { class: "btn btn-primary", text: "Set a passcode", onclick: () => { closeModal(); setTimeout(() => showLock("setup"), 60); } }));
+  }
+  openModal(set ? "Passcode" : "Set a passcode", body, acts);
+}
+
+/** Re-lock after a spell in the background. */
+function watchIdle() {
+  let hiddenAt = 0;
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (!LOCK_ENABLED || !lockIsSet() || LOCK.state) return;
+    if (hiddenAt && Date.now() - hiddenAt > LOCK_IDLE_MS) showLock("locked");
+  });
+}
+
+/* ==========================================================
+   9. Boot
+   ========================================================== */
+function applyStoredTheme() {
+  const t = LS.get("sl.theme", null);
+  if (t) document.documentElement.setAttribute("data-theme", t);
+}
+$("#themeBtn").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const isDark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const next = isDark ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  LS.set("sl.theme", next);
+});
+$("#newGroupBtn").addEventListener("click", () => openGroupModal(null));
+$("#lockBtn").addEventListener("click", openLockSettings);
+$("#authGo").addEventListener("click", submitAuth);
+$("#authServer").addEventListener("click", openAccountModal);
+$("#authPhone").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("#authName").focus(); } });
+$("#authName").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); submitAuth(); } });
+
+/** Show or hide the groups drawer. The phone build overrides this to also
+ *  manage a history entry, so every caller must go through it. */
+function setRail(open) { $("#rail").classList.toggle("open", !!open); }
+
+$("#railBtn").addEventListener("click", () => setRail(!$("#rail").classList.contains("open")));
+// Capture phase on purpose: this runs BEFORE the clicked control's own handler,
+// so a tap inside a dialog is judged while that dialog is still open and can
+// never be mistaken for a tap outside the drawer.
+document.addEventListener("click", e => {
+  if ($("#modalRoot").innerHTML) return;
+  const rail = $("#rail");
+  if (window.innerWidth <= 780 && rail.classList.contains("open") && !rail.contains(e.target) && e.target.closest("#railBtn") === null) setRail(false);
+}, true);
+
+applyStoredTheme();
+S.gid = LS.get("sl.lastGroup", null);
+render();
+
+(async function boot() {
+  let db = null;
+  try { db = window.claude && window.claude.use ? await window.claude.use("db") : null; } catch (e) { db = null; }
+  if (db) {
+    S.db = db;
+    subscribeGroups();
+  } else {
+    S.offline = true; S.ready = true;
+    localLoad();
+    if (!S.gid || !S.groups.some(g => g.id === S.gid)) S.gid = S.groups[0] ? S.groups[0].id : null;
+    S.group = S.groups.find(g => g.id === S.gid) || null;
+    render();
+  }
+})();
+
+})();
+</script>

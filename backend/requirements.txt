@@ -1,0 +1,11 @@
+fastapi==0.141.1
+uvicorn[standard]==0.38.0
+sqlalchemy==2.0.52
+pydantic==2.13.3
+python-dotenv==1.1.1
+
+# PostgreSQL driver (production)
+asyncpg==0.30.0
+
+# SQLite driver (local runs and the test suite)
+aiosqlite==0.21.0

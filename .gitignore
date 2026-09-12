@@ -1,0 +1,31 @@
+# Signing material — never commit these
+*.jks
+*.keystore
+*.p12
+key.properties
+
+# Build output
+android/build/
+*.unaligned.apk
+*.aligned.apk
+classes.dex
+
+# Tooling fetched locally
+android/apktool.jar
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp
+
+# helper scripts, not part of the project
+push_to_github.cmd
+push_to_github.sh
+
+# Backend
+__pycache__/
+*.py[cod]
+.venv/
+.env
+*.db
+.pytest_cache/
