@@ -1,0 +1,52 @@
+# Render Blueprint — creates the sync server from this repository.
+#
+# Render reads this file when you create a Blueprint Instance, so the region,
+# the Docker settings and every environment variable come from here instead of
+# being typed into a form. The one value it asks you for is DATABASE_URL, which
+# is marked `sync: false` because it carries the database password and has no
+# business sitting in a public repo.
+#
+# Paste the Neon connection string exactly as Neon prints it — the server
+# rewrites the scheme and TLS parameters for asyncpg on startup.
+#
+# See docs/DEPLOY.md for the walkthrough.
+
+services:
+  - type: web
+    name: split-ledger
+    runtime: docker
+    # `free` sleeps after 15 minutes idle and takes 30-60s to wake, which is
+    # longer than the app's 20-second request timeout: the first sync after a
+    # quiet spell reports "No connection" and the next one succeeds. Change to
+    # `starter` ($7/month) to keep it awake.
+    plan: free
+    region: singapore          # closest Render region to India
+    rootDir: backend           # the build context
+    dockerfilePath: ./backend/Dockerfile   # relative to the repo root
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Asked for at Blueprint creation. Never stored in this file.
+      - key: DATABASE_URL
+        sync: false
+
+      - key: DEFAULT_COUNTRY_CODE
+        value: "+91"
+
+      # false = anyone who types a mobile number becomes that person.
+      # Deliberate for a private circle; see docs/DEPLOY.md before going wider.
+      - key: REQUIRE_OTP
+        value: "false"
+
+      # The Android app loads from file:// and sends `Origin: null`.
+      - key: CORS_ORIGINS
+        value: "*"
+
+      # The default of 30/hour is shared by strangers behind Indian carrier
+      # NAT — Jio and Airtel put very large numbers of subscribers on a small
+      # pool of public IPs. The per-number limit is the real protection.
+      - key: RL_AUTH_PER_IP
+        value: "2000"
+
+      - key: LOG_LEVEL
+        value: "INFO"

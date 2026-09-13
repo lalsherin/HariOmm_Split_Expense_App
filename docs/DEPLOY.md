@@ -58,49 +58,55 @@ expenses this is not close to a limit.
 
 ## 2 — The API (Render)
 
-1. Sign up at **render.com** and connect your GitHub account.
-2. **New → Web Service**, pick `lalsherin/HariOmm_Split_Expense_App`.
-3. Settings:
+`render.yaml` at the root of this repository already describes the service —
+region, Docker settings, health check and every environment variable. Render
+reads it, so there is no form to fill in and nothing to mistype.
 
-   | Field | Value |
-   |---|---|
-   | Name | `split-ledger` (this becomes the URL) |
-   | Region | Singapore |
-   | Root Directory | `backend` |
-   | Language / Runtime | **Docker** |
-   | Dockerfile Path | `./Dockerfile` (relative to the root directory) |
-   | Instance Type | see the cold-start note below |
+**First make sure the repo on GitHub is current**, including `render.yaml`.
+Run `push_to_github.cmd` from the extracted project folder if in doubt; Render
+reads GitHub, not your laptop.
 
-   Render sets `PORT` itself and the Dockerfile binds to it.
+1. Go to **dashboard.render.com**.
+2. **New +** (top right) → **Blueprint**.
+3. If Render has not seen your GitHub account yet it asks to connect. Approve
+   it, and give it access to `HariOmm_Split_Expense_App` — "Only select
+   repositories" is enough; it does not need the rest of your account.
+4. Pick **`lalsherin/HariOmm_Split_Expense_App`** → **Connect**.
+5. Render finds `render.yaml` and shows one service, **split-ledger**, plus a
+   single field to fill in: **DATABASE_URL**. Paste the Neon string from step
+   1 there.
+6. **Apply** / **Create Resources**.
 
-4. Add environment variables:
+The first build takes three to five minutes — Render pulls the Python image,
+installs the requirements and starts uvicorn. Watch the **Logs** tab. You are
+looking for:
 
-   ```
-   DATABASE_URL          <the Neon string from step 1>
-   DEFAULT_COUNTRY_CODE  +91
-   REQUIRE_OTP           false
-   CORS_ORIGINS          *
-   RL_AUTH_PER_IP        2000
-   LOG_LEVEL             INFO
-   ```
+```
+Application startup complete.
+Uvicorn running on http://0.0.0.0:10000
+```
 
-   `RL_AUTH_PER_IP` defaults to 30 per hour, which does not survive Indian
-   mobile networks — Jio and Airtel put enormous numbers of subscribers behind
-   a handful of public IPs, so that limit would be shared with strangers. The
-   per-number limit (10/hour) is the one doing real work.
+A `WARNING … REQUIRE_OTP is off` line above it is expected and correct.
 
-5. Deploy. The first build takes a few minutes.
-
-6. Check it:
+7. Your address is on the service page, `https://split-ledger.onrender.com` or
+   similar (Render adds a suffix if the name is taken — use whatever it shows).
+   Open it with `/health` on the end:
 
    ```
    https://split-ledger.onrender.com/health
    →  {"status":"ok","otp_required":false}
    ```
 
-   Tables are created automatically on first startup. There are no migrations
-   in this repo yet, so a future schema change will need Alembic or a manual
-   `DROP`.
+Tables are created automatically on first startup. There are no migrations in
+this repo yet, so a future schema change will need Alembic or a manual `DROP`.
+
+### If you would rather click through it by hand
+
+**New + → Web Service** instead of Blueprint, then set: Region **Singapore**,
+Root Directory **`backend`**, Language **Docker**, Dockerfile Path
+**`./backend/Dockerfile`**, Health Check Path **`/health`**, and add the six
+environment variables listed in `render.yaml` yourself. Render sets `PORT` and
+the Dockerfile binds to it.
 
 ### The cold-start problem
 
@@ -114,6 +120,9 @@ time.
 **Starter, at $7/month, never sleeps.** If anyone other than you is going to
 use this, pay the $7. It is the single biggest difference between "our expense
 app" and "that app that never works".
+
+To switch later: the service's **Settings → Instance Type**, or change
+`plan: free` to `plan: starter` in `render.yaml` and push.
 
 ---
 
