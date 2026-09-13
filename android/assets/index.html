@@ -2415,7 +2415,10 @@ function displayNameFor(m) {
 
 /* ---------- sync ---------- */
 const SYNC = { state: "off", error: "", at: 0, timer: null, running: false };
-function serverUrl() { return String(LS.get("sl.server", "") || "").replace(/\/+$/, ""); }
+/* Built in so the app works out of the box. Account -> Sync server overrides
+   it; emptying that box stores "" and turns syncing off. */
+const DEFAULT_SERVER = "https://split-ledger-71my.onrender.com";
+function serverUrl() { return String(LS.get("sl.server", DEFAULT_SERVER) || "").replace(/\/+$/, ""); }
 function syncSeq() { return LS.get("sl.syncSeq", 0) || 0; }
 function dirtySet() { return LS.get("sl.dirty", { groups: [], expenses: [], settlements: [] }); }
 function markDirty(kind, id) {

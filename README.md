@@ -159,7 +159,7 @@ More detail in [`docs/BUILD.md`](docs/BUILD.md).
 ```
 package        com.sherinlal.splitledger
 label          Split Ledger
-version        2.4 (versionCode 8)
+version        2.5 (versionCode 9)
 minSdk         23  (Android 6.0 Marshmallow)
 targetSdk      34
 permissions    INTERNET, ACCESS_NETWORK_STATE
@@ -172,6 +172,7 @@ signatures     v1 + v2 + v3
 
 ```
 backend/                     FastAPI + Postgres: identity and sync (see its README)
+playstore/                   the Google Play bundle (.aab) build — see its README
 web/split-ledger.html        the application — source of truth for both builds
 android/
   AndroidManifest.xml

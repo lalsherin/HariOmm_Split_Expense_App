@@ -3,7 +3,7 @@ SPLIT LEDGER — Android app (split_expense.apk)
 
 App name on the phone : Split Ledger
 Package               : com.sherinlal.splitledger
-Version               : 2.4 (versionCode 8)
+Version               : 2.5 (versionCode 9)
 Size                  : 61 KB
 Works on              : Android 6.0 (Marshmallow, 2015) and newer
 Permissions           : internet only — no contacts, no storage, no location

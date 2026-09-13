@@ -1,8 +1,11 @@
 /* Transform the artifact page into the offline asset shipped inside the APK.
    Every replacement is asserted so a silent mismatch can't ship. */
 const fs = require("fs");
-const SRC = "/home/claude/split-ledger.html";
-const OUT = "/home/claude/apk/app/assets/index.html";
+const path = require("path");
+/* Paths are relative to this file so the repository builds anywhere, and
+   overridable for the scratch layout used while developing. */
+const SRC = process.env.SL_SRC || path.join(__dirname, "..", "web", "split-ledger.html");
+const OUT = process.env.SL_OUT || path.join(__dirname, "assets", "index.html");
 
 let s = fs.readFileSync(SRC, "utf8");
 const reps = [];
@@ -119,6 +122,17 @@ function setRail(open) {
   if (open && !isOpen) { $("#rail").classList.add("open"); pushBack("rail", railCloseRaw); }
   else if (!open && isOpen) { railCloseRaw(); releaseBack("rail"); }
 }`);
+
+/* 6a — the phone build ships pointed at the project's own server, so a new
+   install syncs with nothing to configure. Overridable and switch-off-able in
+   Account -> Sync server, which stores an empty string and wins over this. */
+const SERVER = process.env.SL_SERVER || "https://split-ledger-71my.onrender.com";
+rep("serverDefault",
+  `function serverUrl() { return String(LS.get("sl.server", "") || "").replace(/\\/+$/, ""); }`,
+  `/* Built in so the app works out of the box. Account -> Sync server overrides
+   it; emptying that box stores "" and turns syncing off. */
+const DEFAULT_SERVER = ${JSON.stringify(SERVER)};
+function serverUrl() { return String(LS.get("sl.server", DEFAULT_SERVER) || "").replace(/\\/+$/, ""); }`);
 
 /* 6b — lock and server sync are phone-build features */
 rep("lockOn", `const LOCK_ENABLED = false;`, `const LOCK_ENABLED = true;`);
@@ -281,6 +295,6 @@ ${s}
 </body>
 </html>
 `;
-fs.mkdirSync("/home/claude/apk/app/assets", { recursive: true });
+fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, doc);
 console.log("wrote " + OUT + " (" + (doc.length / 1024).toFixed(1) + " KB), " + reps.length + " replacements applied");

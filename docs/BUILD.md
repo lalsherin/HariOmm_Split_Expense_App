@@ -110,6 +110,24 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 2.5 (versionCode 9)
+
+- **The sync server's address is built into the app.** `DEFAULT_SERVER` is
+  substituted into the phone build by `build_asset.js` (replacement
+  `serverDefault`, overridable with `SL_SERVER`), so a fresh install signs in
+  against the real server and starts syncing with nothing to configure. Before
+  this, every person had to be told the address and type it into
+  Account -> Sync server, which is exactly the sort of step that gets skipped
+  and then looks like the app is broken.
+  It is a *default*, not a write: nothing is stored under `sl.server` until
+  someone saves something there, so pointing the app at a different server
+  still works, and emptying the box stores `""` and turns syncing off without
+  the built-in address creeping back on the next launch.
+- Existing installs that never set an address pick the server up on upgrade.
+  Ones where an address was typed in are left alone.
+- Fixed in `playstore/build_aab.sh`: bundletool refuses to overwrite its
+  output, so a second run failed until the previous `.aab` was removed.
+
 ### 2.4 (versionCode 8)
 
 - **The "Goa Trip 2026" demo group is gone.** A new install now opens with an
