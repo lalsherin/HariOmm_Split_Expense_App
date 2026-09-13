@@ -22,7 +22,7 @@ services:
     plan: free
     region: singapore          # closest Render region to India
     rootDir: backend           # the build context
-    dockerfilePath: ./backend/Dockerfile   # relative to the repo root
+    dockerfilePath: ./Dockerfile   # relative to the repo root
     healthCheckPath: /health
     autoDeploy: true
     envVars:
