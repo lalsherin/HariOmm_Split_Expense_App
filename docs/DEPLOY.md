@@ -104,9 +104,15 @@ this repo yet, so a future schema change will need Alembic or a manual `DROP`.
 
 **New + → Web Service** instead of Blueprint, then set: Region **Singapore**,
 Root Directory **`backend`**, Language **Docker**, Dockerfile Path
-**`./backend/Dockerfile`**, Health Check Path **`/health`**, and add the six
+**`./Dockerfile`**, Health Check Path **`/health`**, and add the six
 environment variables listed in `render.yaml` yourself. Render sets `PORT` and
 the Dockerfile binds to it.
+
+Dockerfile Path is resolved **relative to the Root Directory**, so with
+`backend` as the root the path is `./Dockerfile`. Writing
+`./backend/Dockerfile` makes Render look for `backend/backend/Dockerfile` and
+the deploy dies at the clone step with `lstat …/backend/backend: no such file
+or directory`.
 
 ### The cold-start problem
 

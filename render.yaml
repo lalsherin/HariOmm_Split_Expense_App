@@ -22,7 +22,9 @@ services:
     plan: free
     region: singapore          # closest Render region to India
     rootDir: backend           # the build context
-    dockerfilePath: ./Dockerfile   # relative to the repo root
+    # Relative to rootDir, NOT to the repo root — "./backend/Dockerfile" here
+    # makes Render look for backend/backend/Dockerfile and fail the clone step.
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     autoDeploy: true
     envVars:

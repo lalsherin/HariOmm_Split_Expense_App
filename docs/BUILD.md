@@ -110,6 +110,25 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 2.4 (versionCode 8)
+
+- **The "Goa Trip 2026" demo group is gone.** A new install now opens with an
+  empty ledger, so every group anyone sees is one they made or one they were
+  added to by number. The sample made sense when the app was offline-only and
+  a first launch would otherwise show nothing at all; with sync live it was
+  just fake data sitting in a list of real ones, and the first thing a new
+  person had to do was work out which entries were theirs.
+- **Upgrades clean it up too** — but only when the group is still exactly as
+  it shipped. `dropDemoGroup()` compares the expense and settlement ids
+  against the seeded set and leaves the group alone if anything was added,
+  removed or renamed, on the grounds that somebody adopted it as a real group
+  and deleting their records would be worse than leaving clutter. The stale
+  `sl.lastGroup` pointer and the `sl.me.goa-sample` mapping go with it.
+- Note for anyone reinstalling to "start clean": `android:allowBackup="true"`
+  means Android restores the app's stored data from the user's Google backup,
+  so an uninstall/reinstall often brings the old groups back. Settings → Apps
+  → Split Ledger → Storage → **Clear data** is what actually resets it.
+
 ### 2.3 (versionCode 7)
 
 - **The person creating a group is now in it from the start.** A new group

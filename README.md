@@ -159,7 +159,7 @@ More detail in [`docs/BUILD.md`](docs/BUILD.md).
 ```
 package        com.sherinlal.splitledger
 label          Split Ledger
-version        2.3 (versionCode 7)
+version        2.4 (versionCode 8)
 minSdk         23  (Android 6.0 Marshmallow)
 targetSdk      34
 permissions    INTERNET, ACCESS_NETWORK_STATE

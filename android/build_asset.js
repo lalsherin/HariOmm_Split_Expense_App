@@ -1,9 +1,8 @@
 /* Transform the artifact page into the offline asset shipped inside the APK.
    Every replacement is asserted so a silent mismatch can't ship. */
 const fs = require("fs");
-const path = require("path");
-const SRC = path.resolve(__dirname, "../web/split-ledger.html");
-const OUT = path.resolve(__dirname, "assets/index.html");
+const SRC = "/home/claude/split-ledger.html";
+const OUT = "/home/claude/apk/app/assets/index.html";
 
 let s = fs.readFileSync(SRC, "utf8");
 const reps = [];
@@ -126,27 +125,7 @@ rep("lockOn", `const LOCK_ENABLED = false;`, `const LOCK_ENABLED = true;`);
 rep("syncOn", `const SYNC_ENABLED = false;          // the phone build turns this on`,
              `const SYNC_ENABLED = true;           // on in the phone build`);
 
-/* 7 — boot: local storage only, plus backup/restore and a first-run sample */
-const SAMPLE_MEMBERS = [{ id: "m1", name: "Sherin" }, { id: "m2", name: "Anu" }, { id: "m3", name: "Rahul" }, { id: "m4", name: "Divya" }];
-const sample = {
-  group: {
-    id: "goa-sample", name: "Goa Trip 2026", currency: "INR", sample: true,
-    createdAt: "2026-07-10T06:00:00.000Z", updatedAt: "2026-09-06T06:00:00.000Z", members: SAMPLE_MEMBERS
-  },
-  expenses: [
-    { id: "e1", gid: "goa-sample", description: "Flights to Goa", amount: 4820000, category: "Transport", date: "2026-07-14", splitType: "equal", parts: ["m1", "m2", "m3", "m4"], values: {}, splits: { m1: 1205000, m2: 1205000, m3: 1205000, m4: 1205000 }, payers: { m1: 4820000 }, paidBy: "m1", createdBy: "m1", createdAt: "2026-07-14T09:12:00.000Z" },
-    { id: "e2", gid: "goa-sample", description: "Beach villa, 4 nights", amount: 3600000, category: "Stay", date: "2026-07-15", splitType: "equal", parts: ["m1", "m2", "m3", "m4"], values: {}, splits: { m1: 900000, m2: 900000, m3: 900000, m4: 900000 }, payers: { m2: 3600000 }, paidBy: "m2", createdBy: "m2", createdAt: "2026-07-15T11:40:00.000Z" },
-    { id: "e3", gid: "goa-sample", description: "Dinner at Thalassa", amount: 1245000, category: "Food & drink", date: "2026-07-16", splitType: "exact", parts: ["m1", "m2", "m3", "m4"], values: { m1: 3500, m2: 2800, m3: 3200, m4: 2950 }, splits: { m1: 350000, m2: 280000, m3: 320000, m4: 295000 }, payers: { m3: 1245000 }, paidBy: "m3", createdBy: "m3", createdAt: "2026-07-16T16:05:00.000Z" },
-    { id: "e4", gid: "goa-sample", description: "Scooter rental (2 bikes)", amount: 640000, category: "Transport", date: "2026-07-16", splitType: "equal", parts: ["m1", "m3"], values: {}, splits: { m1: 320000, m3: 320000 }, payers: { m1: 640000 }, paidBy: "m1", createdBy: "m1", createdAt: "2026-07-16T04:30:00.000Z" },
-    { id: "e5", gid: "goa-sample", description: "Groceries & breakfast run", amount: 382500, category: "Groceries", date: "2026-07-17", splitType: "adjustment", parts: ["m1", "m2", "m3", "m4"], values: { m1: 0, m2: 0, m3: 450, m4: 0 }, splits: { m1: 84375, m2: 84375, m3: 129375, m4: 84375 }, payers: { m4: 382500 }, paidBy: "m4", createdBy: "m4", createdAt: "2026-07-17T03:20:00.000Z" },
-    { id: "e6", gid: "goa-sample", description: "Dudhsagar falls day trip", amount: 2150000, category: "Entertainment", date: "2026-08-02", splitType: "equal", parts: ["m1", "m2", "m3", "m4"], values: {}, splits: { m1: 537500, m2: 537500, m3: 537500, m4: 537500 }, payers: { m2: 1200000, m3: 950000 }, paidBy: "m2", createdBy: "m2", createdAt: "2026-08-02T13:45:00.000Z" },
-    { id: "e7", gid: "goa-sample", description: "Cab to the airport", amount: 185000, category: "Transport", date: "2026-08-04", splitType: "equal", parts: ["m1", "m2", "m3", "m4"], values: {}, splits: { m1: 46250, m2: 46250, m3: 46250, m4: 46250 }, payers: { m4: 185000 }, paidBy: "m4", createdBy: "m4", createdAt: "2026-08-04T02:10:00.000Z" },
-    { id: "e8", gid: "goa-sample", description: "Reunion brunch", amount: 268000, category: "Food & drink", date: "2026-09-06", splitType: "equal", parts: ["m1", "m2", "m3"], values: {}, splits: { m1: 89334, m2: 89333, m3: 89333 }, payers: { m3: 268000 }, paidBy: "m3", createdBy: "m3", createdAt: "2026-09-06T06:30:00.000Z" }
-  ],
-  settlements: [
-    { id: "s1", gid: "goa-sample", from: "m3", to: "m1", amount: 500000, date: "2026-08-06", method: "UPI", note: "part payment for flights", createdBy: "m3", createdAt: "2026-08-06T10:00:00.000Z" }
-  ]
-};
+/* 7 — boot: local storage only, plus backup/restore. No demo data. */
 
 rep("boot", `applyStoredTheme();
 S.gid = LS.get("sl.lastGroup", null);
@@ -218,23 +197,41 @@ function openBackupModal() {
 }
 $("#backupBtn").addEventListener("click", openBackupModal);
 
-/* ---------- first run ---------- */
-const SAMPLE = __SAMPLE__;
-function seedIfEmpty() {
-  if (LS.get("sl.seeded", false)) return;
-  LS.set("sl.seeded", true);
-  if (S.groups.length) return;
-  S.groups = [SAMPLE.group];
-  S.expenses = SAMPLE.expenses.slice();
-  S.settlements = SAMPLE.settlements.slice();
-  LS.set(meKey(SAMPLE.group.id), "m1");
-  LS.set("sl.lastGroup", SAMPLE.group.id);
+/* ---------- first run ----------
+   Nothing is seeded. A new install opens empty, so every group anyone ever
+   sees is either one they made or one they were added to by number.
+
+   Builds before 2.4 shipped a demo group, "Goa Trip 2026". It is cleared here
+   on upgrade — but only while it is still exactly as it shipped. If the ids in
+   it do not match the ones that were seeded, somebody has been using it as a
+   real group, and it is left alone rather than deleted under them. */
+const DEMO_GID = "goa-sample";
+const DEMO_EXPENSES = ["e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"];
+const DEMO_SETTLEMENTS = ["s1"];
+
+function sameIds(got, want) {
+  if (got.length !== want.length) return false;
+  const w = {};
+  want.forEach(id => { w[id] = true; });
+  return got.every(id => w[id]);
+}
+
+function dropDemoGroup() {
+  if (!S.groups.some(g => g.id === DEMO_GID)) return;
+  const exp = S.expenses.filter(e => e.gid === DEMO_GID).map(e => e.id);
+  const set = S.settlements.filter(s => s.gid === DEMO_GID).map(s => s.id);
+  if (!sameIds(exp, DEMO_EXPENSES) || !sameIds(set, DEMO_SETTLEMENTS)) return;
+  S.groups = S.groups.filter(g => g.id !== DEMO_GID);
+  S.expenses = S.expenses.filter(e => e.gid !== DEMO_GID);
+  S.settlements = S.settlements.filter(s => s.gid !== DEMO_GID);
+  try { localStorage.removeItem(meKey(DEMO_GID)); } catch (e) { }
+  if (LS.get("sl.lastGroup", null) === DEMO_GID) LS.set("sl.lastGroup", null);
   localSave();
 }
 
 applyStoredTheme();
 localLoad();
-seedIfEmpty();
+dropDemoGroup();
 S.ready = true;
 S.gid = LS.get("sl.lastGroup", null);
 if (!S.gid || !S.groups.some(g => g.id === S.gid)) S.gid = S.groups[0] ? S.groups[0].id : null;
@@ -265,7 +262,6 @@ for (const r of reps) {
   if (n !== 1) { console.error("FAILED replacement '" + r.name + "' matched " + n + " times"); process.exit(1); }
   s = s.replace(r.from, () => r.to);
 }
-s = s.replace("__SAMPLE__", JSON.stringify(sample));
 
 /* guard: nothing cloud-specific may survive into the phone build */
 ["window.claude", "fonts.googleapis", "fonts.gstatic", "claude.use("].forEach(bad => {
@@ -285,6 +281,6 @@ ${s}
 </body>
 </html>
 `;
-fs.mkdirSync(path.dirname(OUT), { recursive: true });
+fs.mkdirSync("/home/claude/apk/app/assets", { recursive: true });
 fs.writeFileSync(OUT, doc);
 console.log("wrote " + OUT + " (" + (doc.length / 1024).toFixed(1) + " KB), " + reps.length + " replacements applied");
