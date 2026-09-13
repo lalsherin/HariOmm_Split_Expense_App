@@ -41,3 +41,32 @@ def test_default_country_is_configurable():
 def test_mask_hides_the_middle():
     m = mask("+919876543210")
     assert m.endswith("3210") and "98765" not in m
+
+
+# --- deployment: the connection string a managed host actually gives you ----
+
+from app.config import normalise_database_url
+
+
+def test_neon_style_url_is_translated_for_asyncpg():
+    out = normalise_database_url(
+        "postgresql://u:p@ep-x.aws.neon.tech/splitledger"
+        "?sslmode=require&channel_binding=require"
+    )
+    assert out == "postgresql+asyncpg://u:p@ep-x.aws.neon.tech/splitledger?ssl=require"
+
+
+def test_heroku_style_postgres_scheme_is_upgraded():
+    assert normalise_database_url("postgres://u:p@host:5432/db") == \
+        "postgresql+asyncpg://u:p@host:5432/db"
+
+
+def test_sslmode_disable_does_not_force_tls():
+    assert normalise_database_url("postgresql://u@h/d?sslmode=disable") == \
+        "postgresql+asyncpg://u@h/d"
+
+
+def test_sqlite_and_explicit_drivers_are_left_alone():
+    for url in ("sqlite+aiosqlite:///./split_ledger.db",
+                "postgresql+asyncpg://u@h/d", ""):
+        assert normalise_database_url(url) == url
