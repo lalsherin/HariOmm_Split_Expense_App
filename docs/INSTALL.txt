@@ -1,0 +1,162 @@
+SPLIT BUDDY — Android app (split_expense.apk)
+==============================================
+
+App name on the phone : Split Buddy
+Package               : com.sherinlal.splitledger
+Version               : 3.0 (versionCode 14)
+Size                  : 61 KB
+Works on              : Android 6.0 (Marshmallow, 2015) and newer
+Permissions           : internet; contacts only when you tap Contacts
+
+
+HOW TO INSTALL
+--------------
+1. Copy split_expense.apk to your phone (USB cable, Google Drive, or email it
+   to yourself and download it on the phone).
+
+2. On the phone, open Files and tap split_expense.apk.
+
+3. Android will say installs from this source are blocked. Tap Settings in
+   that message, turn on "Allow from this source" for whichever app you are
+   installing from (Files / Chrome / Drive), then press back and tap Install.
+   This is normal for any app that did not come from the Play Store.
+
+4. If Play Protect shows "Unsafe app blocked" or "App scan", choose
+   "Install anyway" / "More details > Install anyway". Play Protect flags every
+   app it has not seen before; it is not reporting anything it found.
+
+5. Open "Split Buddy" from your app drawer.
+
+Install 2.0 straight over any earlier version — same signing key, so your
+groups and expenses are kept.
+
+
+WHAT'S NEW IN 2.2
+-----------------
+* Fixed a bug that silently lost changes. If you saved an expense while the
+  app happened to be mid-way through talking to the server, that expense was
+  dropped from the queue and never sent — the app showed "Synced" and the
+  other person never saw it. Anything queued while a request is in flight is
+  now kept and sent on the next round.
+
+  If you have been running 2.1, open each group once after updating and check
+  that everything you expect is there. An expense lost this way is still on
+  the phone that created it; editing it (change the amount and change it back)
+  puts it back in the queue.
+
+
+WHAT WAS NEW IN 2.1
+-----------------
+* Your mobile number is now your account. The first screen asks for your
+  number and your name. No OTP, no password — see the warning below.
+
+* Groups are shared. Add someone to a group by their mobile number and, when
+  they sign in on their own phone with that number, the group, its members and
+  every expense in it appear for them. Both of you can add expenses and each
+  sees the other's.
+  This needs a server. Until you set one up (→ Account, in the ☰ drawer) the
+  app works exactly as before, on this phone only.
+
+* Everyone sees their own names. A member is identified by their NUMBER, and
+  the name shown is whatever YOU have that number saved as. If you save a
+  number as "Anu" and your friend saves it as "Anu Sharma", each of you sees
+  your own name for her. Use "Rename" next to a member to pick a different
+  name from your contacts — it only changes what you see.
+
+* Works with no signal. Add expenses on a train; they queue on the phone and
+  sync when the connection comes back. The drawer shows Synced / Offline.
+
+
+WHO CAN SEE YOUR GROUPS — PLEASE READ
+-------------------------------------
+There is no verification of mobile numbers. Anyone who types your number into
+their own copy of the app, pointed at your server, becomes you and sees your
+groups.
+
+That is a deliberate trade for a private server used by people who know each
+other. Do not hand the server address to strangers. The code to switch on SMS
+verification is already written — set REQUIRE_OTP=true on the server and add
+an SMS provider — see backend/README.md.
+
+
+WHAT WAS NEW IN 2.0
+-----------------
+* Passcode lock. The first launch asks you to set a four-digit passcode, and
+  it is asked for every time you open the app and again after two minutes in
+  the background. Five wrong tries pause entry for 30 seconds.
+  Manage it from the lock icon at the bottom of the ☰ drawer: lock now,
+  change it, or turn it off.
+
+* Add members from your contacts. In Group settings there is now a Contacts
+  button next to Add. It opens your phone's own contact picker; tap a person
+  and their name and number are added to the group.
+  The app does NOT read your address book and asks for no contacts
+  permission — the picker runs outside the app and hands back only the one
+  person you tapped.
+
+* Fixed the "This app was built for an older version of Android" message.
+  The app now declares Android 6.0 as its minimum and Android 14 as its
+  target, so the installer stops treating it as a legacy app.
+
+
+ABOUT THE PASSCODE — WHAT IT DOES AND DOESN'T DO
+------------------------------------------------
+The passcode is never stored. What is stored is a salted, 25,000-round
+SHA-256 of it, so the number itself cannot be read back off the phone.
+
+It stops someone who picks up your unlocked phone from opening the app and
+reading your groups. It is NOT encryption: the expense data itself is stored
+in the app's private storage in the clear, so it does not protect against
+someone with full access to the phone's filesystem. Your phone's own screen
+lock is what does that.
+
+There is no way to recover a forgotten passcode. The only way back in is
+"Forgot your passcode?" on the lock screen, which erases the app's data.
+Keep a backup (see below) if the data matters.
+
+
+IMPORTANT — YOUR DATA LIVES ON THE PHONE
+----------------------------------------
+The app has no internet access and no account. Everything is stored in the
+app's own storage on that one device. That means:
+
+  * It does NOT sync with the web version, and two phones do not share data.
+  * Uninstalling the app deletes everything in it.
+  * Use the Backup button (open the ☰ drawer, then the download icon at the
+    bottom) to copy your data out as text. Paste that same text into the
+    Restore box on another phone, or after reinstalling, to get it all back.
+
+
+WHAT'S IN IT
+------------
+Everything the web version has: groups, members, expenses with all five split
+types (equal / exact / percentage / shares / adjustments), single or multiple
+payers, balances, simplified settle-up, recorded payments, insights charts and
+an activity feed.
+
+It opens on a sample group called "Goa Trip 2026" so you can see it working.
+Delete it from the group settings (gear icon) once you have made a real group.
+
+
+UPDATING IT LATER
+-----------------
+split-ledger.jks is the key this APK was signed with. Keep it. Android only
+lets a new version install over an old one if it is signed with the SAME key —
+without this file a future version would have to be installed as a separate
+app, losing the data.
+
+  keystore : split-ledger.jks
+  alias    : splitledger
+  password : splitledger   (both the store and the key)
+
+split_expense_source.zip has everything used to build the APK.
+
+
+VERIFYING THE FILE
+------------------
+SHA-256 of split_expense.apk:
+b7011c2a1ec9326e7c34478f1c5ddd0efe48c7692b952d82d56fecd57e450d74
+
+The app is one Activity holding a WebView that loads its own bundled page,
+plus one bridge method that opens the system contact picker. It declares no
+permissions, so it cannot reach the network or read your files or contacts.
