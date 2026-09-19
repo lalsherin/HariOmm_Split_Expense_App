@@ -37,6 +37,9 @@ mkdir -p build
 echo "==> regenerating assets/index.html from ../web/split-ledger.html"
 node build_asset.js
 
+echo "==> checking version strings agree"
+python3 ./check_version.py
+
 echo "==> checking smali register use"
 python3 ./lint_registers.py ./smali
 

@@ -48,6 +48,21 @@ async def startup() -> None:
         )
 
 
+# Bumped by hand with each release. The app shows it in Account -> Connection
+# check, which is the only way to tell from a phone whether the server has
+# actually been redeployed since the last push — "the code is on GitHub" and
+# "the code is running on Render" are different things, and the difference has
+# already cost an evening.
+SERVER_BUILD = "3.4"
+
+
 @app.get("/health", tags=["ops"])
 async def health():
-    return {"status": "ok", "otp_required": settings.require_otp}
+    return {
+        "status": "ok",
+        "otp_required": settings.require_otp,
+        "build": SERVER_BUILD,
+        # Whether this server can hold a request open. An app that sees false
+        # here knows the deploy is older than 3.1 and stops asking.
+        "long_poll": True,
+    }

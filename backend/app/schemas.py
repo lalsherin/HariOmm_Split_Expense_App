@@ -95,16 +95,27 @@ class SettlementIn(BaseModel):
     updated_at: Optional[str] = None
 
 
+class HiddenIn(BaseModel):
+    """One account removing a group from its own view, or putting it back."""
+    group_id: str = Field(..., max_length=64)
+    hidden: bool = True
+
+
 class SyncChanges(BaseModel):
     groups: List[GroupIn] = Field(default_factory=list)
     members: List[MemberIn] = Field(default_factory=list)
     expenses: List[ExpenseIn] = Field(default_factory=list)
     settlements: List[SettlementIn] = Field(default_factory=list)
+    hidden: List[HiddenIn] = Field(default_factory=list)
 
 
 class SyncRequest(BaseModel):
     since: int = 0
     changes: SyncChanges = Field(default_factory=SyncChanges)
+    # Seconds to hold the request open when there is nothing new yet, so a
+    # phone with the app on screen hears about a change within about a second
+    # instead of on its next poll. 0 answers immediately, as before.
+    wait: int = 0
 
 
 class SyncResponse(BaseModel):
@@ -115,3 +126,7 @@ class SyncResponse(BaseModel):
     expenses: List[Dict[str, Any]] = Field(default_factory=list)
     settlements: List[Dict[str, Any]] = Field(default_factory=list)
     rejected: List[Dict[str, Any]] = Field(default_factory=list)
+    # Every group THIS account has removed from its own view, in full rather
+    # than as a delta — there are only ever a handful, and a complete list is
+    # something the phone can simply adopt instead of having to reconcile.
+    hidden: List[str] = Field(default_factory=list)

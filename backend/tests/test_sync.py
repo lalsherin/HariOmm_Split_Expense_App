@@ -2,6 +2,8 @@
 adds someone from their contacts; that person opens the app on their own phone
 and finds the group, its members and every expense already there.
 """
+import asyncio
+
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -212,3 +214,219 @@ async def test_a_bad_number_on_a_member_keeps_the_name(phone):
 async def test_sync_needs_a_token(client):
     r = await client.post("/sync", json={"since": 0, "changes": {}})
     assert r.status_code == 401
+
+
+# --- waiting, instead of asking again in two minutes -------------------------
+
+
+async def test_a_waiting_phone_is_told_the_moment_a_group_appears(phone):
+    """The point of the whole thing: Anu's app is open and idle, Sherin makes a
+    group, and Anu's phone hears about it within a second — not on its next
+    two-minute poll."""
+    sherin = phone("9876543210", "Sherin")
+    anu = phone("9876500002", "Anu")
+    await sherin.sign_in()
+    await anu.sign_in()
+    await anu.sync()                       # up to date, nothing pending
+
+    async def anu_waits():
+        started = asyncio.get_event_loop().time()
+        out = await anu.sync(wait=10)
+        return out, asyncio.get_event_loop().time() - started
+
+    waiting = asyncio.create_task(anu_waits())
+    await asyncio.sleep(0.3)               # Anu is now holding the line open
+    await sherin.sync(groups=[group()],
+                      members=[member("m-sherin", "Sherin", "+919876543210"),
+                               member("m-anu", "Anu", "9876500002")])
+    out, took = await asyncio.wait_for(waiting, timeout=12)
+
+    assert [g["name"] for g in out["groups"]] == ["Goa Trip 2026"]
+    assert took < 5, f"took {took:.1f}s — that is a poll, not a wait"
+
+
+async def test_a_wait_with_nothing_to_report_gives_up_on_its_own(phone):
+    """Nobody does anything: the request comes back empty at the end of the
+    wait rather than hanging until the phone times out."""
+    sherin = phone("9876543210", "Sherin")
+    await sherin.sign_in()
+    await sherin.sync()
+
+    started = asyncio.get_event_loop().time()
+    out = await sherin.sync(wait=2)
+    took = asyncio.get_event_loop().time() - started
+
+    assert not out["groups"] and not out["expenses"]
+    assert 1.0 < took < 6.0, f"came back after {took:.1f}s"
+
+
+async def test_a_phone_with_something_to_send_is_never_held(phone):
+    """A wait only ever applies to an empty request. Anything being pushed is
+    answered at once, or adding an expense would feel frozen."""
+    sherin = phone("9876543210", "Sherin")
+    await sherin.sign_in()
+    started = asyncio.get_event_loop().time()
+    await sherin.sync(wait=10, groups=[group()],
+                      members=[member("m-sherin", "Sherin", "+919876543210")])
+    assert asyncio.get_event_loop().time() - started < 2
+
+
+async def test_a_silly_wait_is_capped(phone):
+    """A client asking for an hour gets the server's maximum, so a stuck or
+    hostile caller cannot pin a connection down."""
+    from app.sync.router import MAX_WAIT
+    sherin = phone("9876543210", "Sherin")
+    await sherin.sign_in()
+    await sherin.sync()
+    started = asyncio.get_event_loop().time()
+    await sherin.sync(wait=100000)
+    took = asyncio.get_event_loop().time() - started
+    assert took < MAX_WAIT + 4, f"held for {took:.1f}s, cap is {MAX_WAIT}s"
+
+
+# --- who may delete a group ---------------------------------------------------
+
+
+async def _goa_with_anu(phone):
+    """Sherin makes the group and adds Anu; both are signed in and synced."""
+    sherin = phone("9876543210", "Sherin")
+    anu = phone("9876500002", "Anu")
+    await sherin.sign_in()
+    await anu.sign_in()
+    await sherin.sync(
+        groups=[group()],
+        members=[member("m-sherin", "Sherin", "+919876543210"),
+                 member("m-anu", "Anu", "9876500002")],
+        expenses=[expense("e1", "Dinner at Thalassa", 124500, "m-sherin",
+                          {"m-sherin": 62250, "m-anu": 62250})],
+    )
+    await anu.sync()
+    return sherin, anu
+
+
+async def test_a_member_cannot_delete_the_group_for_everyone(phone):
+    """Anu did not create the group, so her delete is refused. On her own phone
+    the app hides it locally and never sends this at all — but an older build,
+    or a hand-made request, must not be able to wipe out Sherin's records."""
+    sherin, anu = await _goa_with_anu(phone)
+
+    out = await anu.sync(groups=[group(deleted=True, updated_at="2027-01-01T00:00:00+00:00")])
+    assert out["rejected"] == [{"kind": "group", "id": GID, "reason": "not_the_creator"}]
+
+    sherin.seq = 0
+    got = await sherin.sync()
+    assert [g["deleted"] for g in got["groups"]] == [False], "Sherin lost her group"
+
+
+async def test_a_refused_delete_does_not_gut_the_group_on_the_way_past(phone):
+    """Deleting a group tombstones everything inside it, and those rows travel
+    in the same request. Refusing only the group would leave it standing and
+    empty, which is worse than either outcome."""
+    sherin, anu = await _goa_with_anu(phone)
+    later = "2027-01-01T00:00:00+00:00"
+
+    out = await anu.sync(
+        groups=[group(deleted=True, updated_at=later)],
+        members=[member("m-sherin", "Sherin", "+919876543210", deleted=True, updated_at=later),
+                 member("m-anu", "Anu", "9876500002", deleted=True, updated_at=later)],
+        expenses=[expense("e1", "Dinner at Thalassa", 124500, "m-sherin",
+                          {"m-sherin": 62250, "m-anu": 62250},
+                          deleted=True, updated_at=later)],
+    )
+    assert all(r["reason"] == "not_the_creator" for r in out["rejected"])
+    assert len(out["rejected"]) == 4
+
+    sherin.seq = 0
+    got = await sherin.sync()
+    assert [g["deleted"] for g in got["groups"]] == [False]
+    assert [e["deleted"] for e in got["expenses"]] == [False], "the expense was deleted anyway"
+    assert [m["deleted"] for m in got["members"]] == [False, False]
+
+
+async def test_the_creator_can_still_delete_it_for_everyone(phone):
+    """The other half of the rule — and the part that must not regress."""
+    sherin, anu = await _goa_with_anu(phone)
+
+    out = await sherin.sync(groups=[group(deleted=True, updated_at="2027-01-01T00:00:00+00:00")])
+    assert not out["rejected"]
+
+    got = await anu.sync()
+    assert [g["deleted"] for g in got["groups"]] == [True]
+
+
+async def test_a_member_can_still_delete_an_ordinary_expense(phone):
+    """The rule is about deleting the whole group. Everyday editing is
+    untouched: any member may still remove an expense."""
+    sherin, anu = await _goa_with_anu(phone)
+    out = await anu.sync(expenses=[expense("e1", "Dinner at Thalassa", 124500, "m-sherin",
+                                           {"m-sherin": 62250, "m-anu": 62250},
+                                           deleted=True,
+                                           updated_at="2027-01-01T00:00:00+00:00")])
+    assert not out["rejected"]
+    got = await sherin.sync()
+    assert [e["deleted"] for e in got["expenses"]] == [True]
+
+
+async def test_the_creator_is_reported_so_the_app_knows_whose_button_it_is(phone):
+    """The app decides which of the two delete buttons to show from this."""
+    sherin, anu = await _goa_with_anu(phone)
+    anu.seq = 0
+    got = await anu.sync()
+    assert got["groups"][0]["created_by"] == sherin.user["id"]
+
+
+# --- removing a group from your own view, without touching anyone else's -----
+
+
+async def test_a_member_can_hide_a_group_for_themselves_only(phone):
+    """The other half of the delete rule. Anu removes the group from her own
+    view; Sherin's copy is untouched, and she is not removed from the group."""
+    sherin, anu = await _goa_with_anu(phone)
+
+    out = await anu.sync(hidden=[{"group_id": GID, "hidden": True}])
+    assert not out["rejected"]
+    assert out["hidden"] == [GID]
+
+    # Sherin is told nothing at all — not that it happened, not that she left.
+    sherin.seq = 0
+    got = await sherin.sync()
+    assert got["hidden"] == [], "Anu's choice leaked to Sherin"
+    assert [g["deleted"] for g in got["groups"]] == [False]
+    assert [m["deleted"] for m in got["members"]] == [False, False]
+
+
+async def test_hiding_survives_a_reinstall(phone):
+    """The point of keeping this on the server. A phone that has lost
+    everything local asks for the whole picture and is told, again, which
+    groups this account does not want to see."""
+    sherin, anu = await _goa_with_anu(phone)
+    await anu.sync(hidden=[{"group_id": GID, "hidden": True}])
+
+    fresh = phone("9876500002", "Anu")          # same number, nothing local
+    await fresh.sign_in()
+    got = await fresh.sync()
+    assert got["hidden"] == [GID]
+    assert len(got["groups"]) == 1, "the group itself is still there, just hidden"
+
+
+async def test_putting_it_back(phone):
+    sherin, anu = await _goa_with_anu(phone)
+    await anu.sync(hidden=[{"group_id": GID, "hidden": True}])
+    out = await anu.sync(hidden=[{"group_id": GID, "hidden": False}])
+    assert out["hidden"] == []
+
+
+async def test_hiding_is_idempotent(phone):
+    """The phone may send the same thing twice — a retry after a reply it
+    never saw. Twice must mean the same as once."""
+    sherin, anu = await _goa_with_anu(phone)
+    await anu.sync(hidden=[{"group_id": GID, "hidden": True}])
+    out = await anu.sync(hidden=[{"group_id": GID, "hidden": True}])
+    assert out["hidden"] == [GID]
+
+
+async def test_you_cannot_hide_someone_elses_group(phone):
+    outsider = phone("9876500009", "Nobody")
+    await outsider.sign_in()
+    out = await outsider.sync(hidden=[{"group_id": "g-not-mine", "hidden": True}])
+    assert out["rejected"] == [{"kind": "hidden", "id": "g-not-mine", "reason": "not_a_member"}]

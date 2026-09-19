@@ -150,9 +150,15 @@ message underneath is the server's own words.
 ## 4 — Prove it works
 
 1. On phone A, create a group and add phone B's mobile number as a member.
-2. On phone B, open the app. Within about two minutes the group appears. To
-   stop waiting, tap **Account → Save** to force a sync.
-3. Add an expense on B; it shows up on A.
+2. On phone B, open the app and leave it on screen. The group appears in about
+   a second. (If it takes up to two minutes, the server is still running a
+   build older than 3.1 — redeploy Render. The app notices and falls back on
+   its own; nothing breaks, it is just slower.)
+3. Add an expense on B; it shows up on A just as quickly.
+
+This only works while the app is **open on the other phone**. There are no push
+notifications — a phone with the app closed catches up the next time it is
+opened.
 
 If B sees nothing, in order of likelihood:
 
@@ -162,7 +168,7 @@ If B sees nothing, in order of likelihood:
 - **B's server address is missing or misspelt.** Check Account on B.
 - **A's group never reached the server.** A's status dot should read *Synced*,
   not *This phone only*.
-- **The app is in the background on B.** It only polls while on screen.
+- **The app is in the background on B.** It only syncs while on screen.
 
 ---
 

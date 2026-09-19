@@ -110,6 +110,217 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 3.4 (versionCode 18)
+
+Two defects, both found by reproducing them rather than by reading.
+
+**A group created while the host was waking up took two minutes to go out —
+and a hung token refresh could stop the app syncing for good.**
+
+`syncNow`'s catch block scheduled nothing. A failed sync left no timer alive,
+so the only thing that ever tried again was the two-minute tick. A free host
+sleeps when idle and takes 30–60 seconds to wake, while every request is
+abandoned at 20 — so the first group made after a quiet spell sat unsent while
+the app did nothing at all. Measured against a stand-in that wakes in 45s:
+**114 seconds** to reach the other phone, with four requests made in that time.
+Now: bounded exponential backoff, 2s → 4s → 8s → 16s → 32s → 60s, reset on
+success and paused while the app is in the background. Same test: **51
+seconds**, i.e. about six seconds after the server was actually available.
+
+Worse, and the likely cause of "it worked for a while and then stopped":
+`doRefresh()` built its `fetch` with **no AbortController**, while every other
+request in the app is abandoned at 20 seconds. `api()` also clears its own
+timeout *before* it inspects the status code. So a `/auth/refresh-token`
+request that was accepted and never answered — precisely what a container or
+a database that is still waking does — hung for ever. The sync waiting on it
+never returned, `SYNC.running` stayed true for the life of the page, and every
+later sync bounced straight off it without touching the network. Reproduced:
+**0 sync attempts in 40 seconds, and still stuck 150 seconds after the server
+was healthy again.** Only force-closing the app cleared it.
+
+Three changes, because one was not enough:
+
+- **`timedFetch`** — one helper, one deadline, used by every request including
+  the refresh.
+- **A watchdog.** A request still "in flight" after 45 seconds is not in
+  flight; `unwedge()` clears the flag. A single stuck flag should never be able
+  to disable an app permanently, whatever causes it.
+- **The first sync after each launch asks for everything** (`since = 0`) and
+  reconciles by row id. It is the one moment the phone can check its whole
+  picture against the server's, which also covers a counter that is somehow
+  ahead of the server's — after a restore, or if the database is ever rebuilt.
+  Rows are matched by id, so asking twice changes nothing.
+
+**Rate limits sized before long polling existed.** An idle phone with the app
+on screen makes about 280 sync requests an hour; the limit was 600. Two busy
+phones on one account, or a stretch of heavy use, would have started getting
+429s that look exactly like "sync has stopped working". Now 3000. And
+`RL_AUTH_PER_NUMBER` was at its default of **10 an hour** — the app signs
+itself in again when a refresh token turns out to be unusable, so ten is close
+enough to normal behaviour to lock a real person out for an hour. Now 60.
+
+**Removing a group from your own view now survives a reinstall.** In 3.2 that
+was `sl.hidden` in localStorage and nowhere else, so a wipe brought every
+removed group back. New `group_hidden` table (`user_id`, `group_id`,
+`hidden_at`) — the smallest thing that lets the data model say *gone for this
+one account* as distinct from `groups.deleted`, which means *gone for
+everyone*. The pull returns each account only its own list, in full rather than
+as a delta; there are only ever a handful, and a complete list is something the
+phone can adopt rather than reconcile. **It is never sent to anyone else** —
+the others are still not told, which was the point of the rule. Created
+automatically on startup like every other table; no migration needed, and an
+older server simply omits the field and the behaviour falls back to being local
+to one phone.
+
+### 3.3 (versionCode 17)
+
+Shipped after a report that groups had stopped reaching the other phone since
+3.1. Every existing test passed, including two written specifically to
+reproduce it — phones with accounts and data from previous days, an app closed
+and reopened, and a 3.2 phone talking to a 3.0 server. Groups arrived every
+time, in 0.6s against a current server and inside two minutes against an old
+one. So the delivery path was not broken.
+
+What *was* broken was the app's answer when you ask it.
+
+**Account → Save reported failure when nothing had failed.** Since 3.1 the app
+spends nearly all its time holding a sync request open, and `syncNow(manual)`
+began with:
+
+```js
+if (SYNC.running) { cancelHold(); scheduleSync(...); return false; }
+```
+
+`false` means "that failed" to every caller. So Save — the documented way to
+force a sync, and the first thing anyone tries when they think sync is
+broken — answered *"Couldn't reach that server"* almost every time, on a
+perfectly healthy server. Data was never affected: the hold was cancelled and
+the sync went through 60ms later. The message was simply a lie, and it is the
+kind of lie that turns a working system into a support problem.
+
+Fixed: a manual sync now waits for the cancelled request to let go
+(`settleInFlight`, milliseconds in practice) and then performs the real sync
+and reports what actually happened. If it genuinely cannot get a turn inside
+five seconds it says *"Still syncing — give it a moment"* rather than blaming
+the network.
+
+**Account → Connection check** (new). "My friend hasn't got the group" has
+about six causes and the app showed none of them — the status dot reads
+*Synced* in most, because from that phone's point of view everything did work.
+One screen now answers it:
+
+- is the server answering, and how fast;
+- **which build the server is running** — `/health` now returns `build`, so a
+  phone can finally tell whether a redeploy actually took. "It's on GitHub" and
+  "it's running on Render" are different things and the difference has already
+  cost an evening. A server too old to report its version says so.
+- who this phone is signed in as;
+- the result of a sync run there and then;
+- anything still queued to send;
+- and the one that is usually the answer: **for every member of the current
+  group, whether anyone has actually signed in with that number.** A member
+  whose number belongs to no account is a placeholder — the group looks
+  perfectly healthy on the phone that made it and does not exist on theirs.
+  Until now nothing anywhere said so.
+
+Nothing on that screen is secret — no tokens, no passwords — so it is safe to
+screenshot and send on. There is a Copy button for the same reason.
+
+**`check_version.py`**, wired into both builds: the app's `APP_VERSION`, the
+server's `SERVER_BUILD` and the manifest's `versionName` must agree or the
+build fails. A version marker that silently goes stale is worse than none,
+because the whole point is to be believed weeks later by someone debugging.
+
+### 3.2 (versionCode 16)
+
+**Deleting a group now means two different things depending on who you are.**
+
+- **Whoever created the group** deletes it for everybody, as before. The
+  tombstone syncs and it goes from every phone in the group.
+- **Everyone else** only clears it off their own phone. They stay in the group,
+  their share of every expense still counts in everyone else's balances, and
+  nobody is told. It is reversible — an Undo on the toast, and a *Removed from
+  this phone* list in Account.
+
+The two are told apart at the moment of the tap: different dialog title,
+different message, different button (*Delete for everyone* vs *Remove from my
+phone*), and a different tooltip on the bin in the group list.
+
+How the creator is known: the server already recorded `created_by` on a group
+the first time it was pushed, and already sent it back on every pull — it was
+simply never stored on the phone. It is now (`g.ownerId`), and `iAmAdmin()`
+compares it against the signed-in account. A group with no recorded creator is
+one that has never been near a server, so it belongs to the phone it is on and
+that phone may do as it likes with it.
+
+**The rule is enforced on the server, not just in the app** (`app/sync/service.py`).
+A hidden button is not a rule: an older build — 3.1 included — sends a real
+tombstone when a member presses Delete, and without the server check it would
+wipe out everyone else's records. A group tombstone from anyone but the creator
+is now refused with `not_the_creator`.
+
+One subtlety that took a second pass. Deleting a group also tombstones every
+member, expense and settlement inside it, and those rows travel in the *same*
+request. Refusing only the group would have left it standing and empty — worse
+than either outcome. So a refused group delete now also blocks the tombstones
+riding along with it in that request. There is a test for exactly this.
+
+Local-only, never pushed: `sl.hidden`, the list of group ids hidden on this
+phone. The server has no idea it exists, which is the point — hiding changes
+nothing for anybody else. Hidden groups still sync in the background, so
+restoring one brings it back up to date rather than frozen at the moment it
+was hidden. An id whose group has since been deleted for everyone is dropped
+from the list on sight.
+
+Five new server tests and a two-phone browser test (`admindelete.mjs`, 27
+checks) covering both paths, the Undo, the Account restore, and the case where
+the creator deletes a group the other phone had already hidden.
+
+### 3.1 (versionCode 15)
+
+**A group made on one phone now appears on the other in about a second**,
+instead of somewhere inside the next two minutes. Measured: 0.0–0.2s for a new
+group, 0.8–1.0s for an expense, in `instant.mjs` with one phone left completely
+untouched.
+
+There is no push notification involved, and this is the honest limit of it: it
+works while the other person has the app **open on screen**. A phone with the
+app closed or in the background still finds out when it is next opened. Real
+push needs Firebase, a Google project, and a Gradle build — none of which this
+repository has.
+
+What actually changed:
+
+- **The server may hold a request open** (`app/sync/router.py`). A phone with
+  nothing to send now asks for up to 15 seconds of patience via a new `wait`
+  field. Rather than re-running the four per-table pull queries in a loop, the
+  hold watches the single global `Counter` row — one cheap read every 0.75s,
+  with a `commit()` between checks so the database connection goes back to the
+  pool instead of being tied up for the whole wait. A real pull only runs when
+  that counter has actually moved. 15s is deliberately well inside the 20s the
+  app abandons a request at, so a wait never surfaces as "No connection".
+- **The wait is cut short the moment there is something to send**
+  (`cancelHold()`). Without this, adding an expense would queue behind a
+  request that might sit for another fourteen seconds — which is exactly what
+  the first measurement showed: 8.6s to deliver a group, almost all of it the
+  creating phone waiting for its own idle request to end.
+- **The app goes straight back to waiting after every sync**, not just after a
+  held one. Previously a phone that had just pushed something dropped back to
+  the two-minute timer, so the person who created a group was the last to hear
+  about anything that happened in it.
+- **A held request no longer reads "Syncing…".** It is waiting, not working;
+  the status stays *Synced*, which is the truth.
+- **It degrades on an old server.** If three held requests come back instantly
+  and empty, the server predates `wait`, long polling switches itself off, and
+  the app falls back to the two-minute poll rather than hammering it every
+  250ms. So a phone on 3.1 is safe against a Render deployment still running
+  3.0 — it is simply no faster until the server is updated.
+- Backgrounding stops it dead: `document.hidden` disables the hold, and the
+  test asserts a hidden page makes at most one request in six seconds.
+
+Four new server tests cover the wake-up, the timeout, the cap, and the rule
+that a request carrying changes is never held.
+
 ### 3.0 (versionCode 14)
 
 - **Renamed to Split Buddy** — the launcher label (`res/values/strings.xml`),

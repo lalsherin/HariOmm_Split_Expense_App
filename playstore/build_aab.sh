@@ -47,6 +47,9 @@ mkdir -p build dist
 echo "==> regenerating the page from web/split-ledger.html"
 ( cd "$ROOT/android" && node build_asset.js )
 
+echo "==> checking version strings agree"
+python3 "$ROOT/android/check_version.py"
+
 echo "==> checking smali register use"
 python3 "$ROOT/android/lint_registers.py" "$ROOT/android/smali"
 

@@ -24,7 +24,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
 from ..database import next_seq
-from ..models import Expense, Group, GroupMember, Settlement, User, utcnow
+from ..models import (Expense, Group, GroupHidden, GroupMember, Settlement,
+                      User, utcnow)
 from ..phone import InvalidPhoneNumber, normalise
 
 _settings = get_settings()
@@ -73,6 +74,11 @@ async def push(db: AsyncSession, user: User, changes) -> List[Dict[str, Any]]:
     """Apply the phone's changes. Returns the rows that were refused."""
     rejected: List[Dict[str, Any]] = []
     allowed = await visible_group_ids(db, user)
+    # Groups this request tried to delete and was not allowed to. Deleting a
+    # group also tombstones everything inside it, and those rows arrive in the
+    # same push — letting them through after refusing the group itself would
+    # leave the group standing and empty, which is the worst of both.
+    blocked: Set[str] = set()
 
     # ---- groups. A group that does not exist yet is created by its sender,
     # which also makes them its first stakeholder.
@@ -90,6 +96,16 @@ async def push(db: AsyncSession, user: User, changes) -> List[Dict[str, Any]]:
         if g.id not in allowed:
             rejected.append({"kind": "group", "id": g.id, "reason": "not_a_member"})
             continue
+        # Only whoever created a group may delete it for everybody. Anyone
+        # else who wants it gone removes it from their own phone, which never
+        # reaches us. Enforced here rather than only in the app, because "the
+        # button is hidden" is not a rule — an old build, or a modified one,
+        # would still be able to wipe out everyone else's records.
+        if g.deleted and not existing.deleted and existing.created_by \
+                and existing.created_by != user.id:
+            rejected.append({"kind": "group", "id": g.id, "reason": "not_the_creator"})
+            blocked.add(g.id)
+            continue
         if incoming_at < _aware(existing.updated_at):
             continue                                    # ours is newer; keep it
         existing.name = g.name
@@ -103,6 +119,9 @@ async def push(db: AsyncSession, user: User, changes) -> List[Dict[str, Any]]:
     for m in changes.members:
         if m.group_id not in allowed:
             rejected.append({"kind": "member", "id": m.id, "reason": "not_a_member"})
+            continue
+        if m.deleted and m.group_id in blocked:
+            rejected.append({"kind": "member", "id": m.id, "reason": "not_the_creator"})
             continue
         phone = None
         if m.phone:
@@ -136,6 +155,9 @@ async def push(db: AsyncSession, user: User, changes) -> List[Dict[str, Any]]:
         if e.group_id not in allowed:
             rejected.append({"kind": "expense", "id": e.id, "reason": "not_a_member"})
             continue
+        if e.deleted and e.group_id in blocked:
+            rejected.append({"kind": "expense", "id": e.id, "reason": "not_the_creator"})
+            continue
         incoming_at = parse_ts(e.updated_at)
         existing = await db.get(Expense, e.id)
         fields = dict(
@@ -161,6 +183,9 @@ async def push(db: AsyncSession, user: User, changes) -> List[Dict[str, Any]]:
         if s.group_id not in allowed:
             rejected.append({"kind": "settlement", "id": s.id, "reason": "not_a_member"})
             continue
+        if s.deleted and s.group_id in blocked:
+            rejected.append({"kind": "settlement", "id": s.id, "reason": "not_the_creator"})
+            continue
         incoming_at = parse_ts(s.updated_at)
         existing = await db.get(Settlement, s.id)
         fields = dict(
@@ -179,6 +204,19 @@ async def push(db: AsyncSession, user: User, changes) -> List[Dict[str, Any]]:
         existing.updated_at = incoming_at
         existing.seq = await next_seq(db)
 
+    # ---- hidden. Purely this account's own view: which groups it does not
+    # want to see. Never touches the group itself and is never shown to anyone
+    # else, so there is nothing to authorise beyond "you can see this group".
+    for h in changes.hidden:
+        if h.group_id not in allowed:
+            rejected.append({"kind": "hidden", "id": h.group_id, "reason": "not_a_member"})
+            continue
+        row = await db.get(GroupHidden, {"user_id": user.id, "group_id": h.group_id})
+        if h.hidden and row is None:
+            db.add(GroupHidden(user_id=user.id, group_id=h.group_id))
+        elif not h.hidden and row is not None:
+            await db.delete(row)
+
     await db.flush()
     return rejected
 
@@ -186,8 +224,12 @@ async def push(db: AsyncSession, user: User, changes) -> List[Dict[str, Any]]:
 async def pull(db: AsyncSession, user: User, since: int) -> Dict[str, Any]:
     """Everything in this account's groups that changed after `since`."""
     allowed = await visible_group_ids(db, user)
+    hidden = list((await db.scalars(
+        select(GroupHidden.group_id).where(GroupHidden.user_id == user.id)
+    )).all())
     if not allowed:
-        return {"seq": since, "groups": [], "members": [], "expenses": [], "settlements": []}
+        return {"seq": since, "groups": [], "members": [], "expenses": [],
+                "settlements": [], "hidden": hidden}
 
     groups = (await db.scalars(
         select(Group).where(Group.id.in_(allowed), Group.seq > since).order_by(Group.seq)
@@ -212,6 +254,7 @@ async def pull(db: AsyncSession, user: User, since: int) -> Dict[str, Any]:
 
     return {
         "seq": high,
+        "hidden": hidden,
         "groups": [{
             "id": g.id, "name": g.name, "currency": g.currency,
             "created_by": g.created_by, "deleted": g.deleted,

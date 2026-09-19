@@ -222,6 +222,17 @@ button { cursor: pointer; }
 .btn-destructive:hover { background: var(--neg); border-color: var(--neg); filter: brightness(1.08); }
 .confirm-text { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--ink-2); white-space: pre-line; }
 .confirm-text strong { color: var(--ink); }
+
+/* Connection check */
+.chk { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.chk:last-child { border-bottom: 0; }
+.chk .mk { flex: 0 0 auto; width: 17px; text-align: center; font-weight: 700; line-height: 1.5; }
+.chk .mk.good { color: var(--pos); }
+.chk .mk.bad { color: var(--neg); }
+.chk .mk.warn { color: var(--gold); }
+.chk .tx { flex: 1; min-width: 0; font-size: 13.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.chk .tx b { color: var(--ink); font-weight: 600; }
+.chk .tx span { display: block; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
 .btn[disabled] { opacity: .45; pointer-events: none; }
 .icon { width: 15px; height: 15px; flex: none; }
 
@@ -425,6 +436,15 @@ input.err { border-color: var(--neg); }
   box-shadow: var(--shadow-md); pointer-events: none;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+/* A toast carrying an Undo has to be clickable, so it takes pointer events
+   back for as long as it is up. Without .show it stays inert, or an invisible
+   toast would swallow taps on whatever is underneath it. */
+.toast.act { pointer-events: none; max-width: min(92vw, 420px); }
+.toast.act.show { pointer-events: auto; }
+.toast .toast-act {
+  border: 0; background: none; color: var(--page); font: inherit; font-weight: 700;
+  text-decoration: underline; padding: 2px 0 2px 14px; margin-left: 2px; cursor: pointer;
+}
 
 .railbtn { display: none; }
 
@@ -915,9 +935,26 @@ const myId = () => {
 };
 const meMember = () => { const id = myId(); return S.group ? (S.group.members || []).find(m => m.id === id) || null : null; };
 
-function toast(msg) {
-  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
-  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2200);
+/** A short message. Pass `action` — {label, onClick} — to hang an Undo off it,
+ *  which also keeps it up longer, because a button nobody has time to read is
+ *  worse than no button. */
+function toast(msg, action) {
+  const t = $("#toast");
+  t.innerHTML = "";
+  t.appendChild(document.createTextNode(msg));
+  t.classList.toggle("act", !!action);
+  if (action && action.label) {
+    t.appendChild(el("button", {
+      class: "toast-act", type: "button", text: action.label,
+      onclick: () => {
+        clearTimeout(toast._t); t.classList.remove("show");
+        if (typeof action.onClick === "function") action.onClick();
+      }
+    }));
+  }
+  t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove("show"), action ? 7000 : 2200);
 }
 
 /* --- writes --- */
@@ -941,7 +978,7 @@ async function removeGroup(id, label) {
     S.expenses = S.expenses.filter(e => e.gid !== id);
     S.settlements = S.settlements.filter(s => s.gid !== id);
   }
-  const nextLive = S.groups.filter(g => !g.deleted)[0];
+  const nextLive = liveGroups()[0];
   if (S.gid === id) selectGroup(nextLive ? nextLive.id : null);
   else render();
 
@@ -1129,10 +1166,19 @@ function render() {
 
 function renderRail() {
   const list = $("#groupList"); list.innerHTML = "";
-  const live = S.groups.filter(g => !g.deleted);
+  const live = liveGroups();
   $("#groupCount").textContent = live.length ? live.length : "";
   if (!live.length) {
-    list.appendChild(el("p", { class: "hint", style: "padding:8px 10px", text: "No groups yet. Create one to start splitting." }));
+    // "No groups yet" would be a small lie if they have some, removed from
+    // this phone and sitting in Account waiting to be put back.
+    const away = hiddenGroupIds().filter(id => {
+      const g = S.groups.find(x => x.id === id);
+      return g && !g.deleted;
+    }).length;
+    list.appendChild(el("p", { class: "hint", style: "padding:8px 10px", text: away
+      ? (away === 1 ? "Nothing here. One group is removed from this phone — Account has it."
+                    : "Nothing here. " + away + " groups are removed from this phone — Account has them.")
+      : "No groups yet. Create one to start splitting." }));
     return;
   }
   live.forEach(g => {
@@ -1146,23 +1192,71 @@ function renderRail() {
       class: "gitem", "aria-current": g.id === S.gid ? "true" : "false",
       onclick: () => selectGroup(g.id)
     }, [el("span", { class: "gn", text: g.name }), b]));
+    const admin = iAmAdmin(g);
     row.appendChild(el("button", {
-      class: "gdel", title: "Delete " + g.name, "aria-label": "Delete group " + g.name,
+      class: "gdel",
+      title: admin ? "Delete " + g.name : "Remove " + g.name + " from this phone",
+      "aria-label": admin ? "Delete group " + g.name
+                          : "Remove " + g.name + " from this phone",
       onclick: (ev) => { ev.stopPropagation(); confirmDeleteGroup(g); }
     }, [iconSvg("M3 4.4h10M6.4 4.4V2.9h3.2v1.5M4.7 4.4l.6 8.3a.9.9 0 0 0 .9.8h3.6a.9.9 0 0 0 .9-.8l.6-8.3")]));
     list.appendChild(row);
   });
 }
 
-/** Delete a whole group — its members, expenses and recorded payments. */
+/** Delete a group.
+ *
+ *  Two different things wear the same button, and which one you get depends on
+ *  whether you made the group:
+ *
+ *    the creator   deletes it for everyone. The tombstone syncs and the group
+ *                  disappears from every phone in it.
+ *    anyone else   removes it from their own phone and nothing else. They stay
+ *                  in the group, their share of every expense still counts for
+ *                  the others, and nobody is told.
+ *
+ *  Being explicit about which is about to happen matters more here than
+ *  anywhere else in the app: one of them is irreversible and takes other
+ *  people's records with it. */
 function confirmDeleteGroup(g) {
+  if (!iAmAdmin(g)) return confirmHideGroup(g);
   confirmModal({
     title: "Delete this group?",
     danger: true,
-    confirmLabel: "Delete group",
+    confirmLabel: "Delete for everyone",
     message: "<strong>" + esc(g.name) + "</strong> and everything in it — its members, every expense and all recorded payments — will be removed.\n\nThis cannot be undone"
-      + (S.db ? ", and it disappears for everyone who can open this page." : "."),
+      + (S.db ? ", and it disappears for everyone who can open this page."
+              : (SYNC_ENABLED ? ", and it disappears from every phone in the group — not just yours."
+                              : ".")),
     onConfirm: () => removeGroup(g.id, g.name)
+  });
+}
+
+/** The non-creator's version: it goes from this phone, and only this phone. */
+function confirmHideGroup(g) {
+  confirmModal({
+    title: "Remove from this phone?",
+    danger: true,
+    confirmLabel: "Remove from my phone",
+    message: "<strong>" + esc(g.name) + "</strong> will disappear from this phone.\n\n"
+      + "It stays exactly as it is for everyone else — you are still in the group, "
+      + "and your share of every expense still counts in their balances. "
+      + "Only whoever created the group can delete it for everybody.\n\n"
+      + "You can bring it back from Account.",
+    onConfirm: () => {
+      hideGroup(g.id);
+      const next = liveGroups()[0];
+      if (S.gid === g.id) selectGroup(next ? next.id : null);
+      else render();
+      toast("“" + g.name + "” removed from this phone", {
+        label: "Undo",
+        onClick: () => {
+          unhideGroup(g.id);
+          selectGroup(g.id);
+          toast("“" + g.name + "” is back");
+        }
+      });
+    }
   });
 }
 
@@ -1980,6 +2074,9 @@ function openGroupModal(existing) {
   // them at the top of the list.
   if (isNew) {
     const me = myIdentity();
+    // Creating it is what makes you its admin, now and for good. The server
+    // records the same thing independently when the group first reaches it.
+    g.ownerId = myUserId();
     if (me && (me.name || me.mobile)) {
       const row = { id: uid("m"), name: me.name || prettyPhone(me.mobile), updatedAt: nowISO() };
       if (me.mobile) {
@@ -2129,7 +2226,10 @@ function openGroupModal(existing) {
   });
   const foot = [
     !isNew ? el("button", {
-      class: "btn btn-danger", text: "Delete group", style: "margin-right:auto",
+      class: "btn btn-danger", style: "margin-right:auto",
+      // Says what it will actually do. For anyone but the creator this button
+      // only clears the group off their own phone.
+      text: iAmAdmin(existing) ? "Delete group" : "Remove from my phone",
       onclick: () => { closeModal(); confirmDeleteGroup(existing); }
     }) : null,
     el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
@@ -2453,8 +2553,69 @@ function prettyPhone(e164) {
   return e164;
 }
 
+/* Kept in step with android/AndroidManifest.xml by hand, and checked by the
+   build script so it cannot quietly drift. Shown in the connection check, next
+   to the server's own build, because "is the server actually running what I
+   pushed?" is otherwise unanswerable from a phone. */
+const APP_VERSION = "3.4";
+
 function myIdentity() { return LS.get("sl.identity", null); }
 function myPhone() { const i = myIdentity(); return i ? i.mobile : null; }
+function myUserId() { const i = myIdentity(); return i && i.userId ? i.userId : null; }
+
+/* ---------- who may delete a group for everyone ----------
+ *
+ * Whoever created the group, and only them, for the life of the group. The
+ * server records it the first time the group is pushed and refuses a delete
+ * from anyone else, so this is a real rule and not just a hidden button — a
+ * modified app cannot talk its way past it.
+ *
+ * A group with no recorded creator is one that has never been near a server:
+ * it exists on this phone alone, so this phone may do as it likes with it. */
+function iAmAdmin(g) {
+  if (!g) return false;
+  if (!g.ownerId) return true;
+  return myUserId() === g.ownerId;
+}
+
+/* ---------- groups hidden on this phone only ----------
+ *
+ * When someone who did not create a group deletes it, it goes away here and
+ * nowhere else: they stay in the group, their share of every expense still
+ * counts for everybody, and no one is told. This list is the record of that,
+ * and it is deliberately never pushed — the server has no idea it exists. */
+function hiddenGroupIds() {
+  const v = LS.get("sl.hidden", []);
+  return Array.isArray(v) ? v : [];
+}
+function isHidden(id) { return hiddenGroupIds().indexOf(id) >= 0; }
+function hideGroup(id) {
+  const list = hiddenGroupIds();
+  if (list.indexOf(id) < 0) { list.push(id); LS.set("sl.hidden", list); }
+  markHiddenDirty(id);
+}
+function unhideGroup(id) {
+  LS.set("sl.hidden", hiddenGroupIds().filter(x => x !== id));
+  markHiddenDirty(id);
+}
+/* Tell the server, so that removing a group from your view survives a
+   reinstall and agrees across your own devices. It is only ever reported back
+   to this account — nobody else in the group is told, which is the whole
+   point. An older server ignores it and the behaviour falls back to being
+   local to this phone, exactly as before. */
+function markHiddenDirty(id) {
+  if (!SYNC_ENABLED || !id) return;
+  const d = dirtySet();
+  if (!d.hidden) d.hidden = [];
+  if (d.hidden.indexOf(id) < 0) d.hidden.push(id);
+  LS.set("sl.dirty", d);
+  cancelHold();
+  scheduleSync(600);
+}
+/** Every group this phone should be showing: not deleted, not hidden here. */
+function liveGroups() {
+  return S.groups.filter(g => !g.deleted && !isHidden(g.id));
+}
 
 /* ---------- per-viewer contact names ---------- */
 function contactBook() { return LS.get("sl.contactNames", {}); }
@@ -2480,16 +2641,83 @@ function displayNameFor(m) {
 }
 
 /* ---------- sync ---------- */
-const SYNC = { state: "off", error: "", at: 0, timer: null, running: false };
+/* How long the server may hold an idle request open, in seconds. Kept well
+   under the 20s this end abandons a request at. */
+const SYNC_HOLD = 15;
+const SYNC = {
+  state: "off", error: "", at: 0, timer: null, running: false,
+  /* Turned off if the server answers a held request straight away several
+     times: that means it predates long polling and is ignoring `wait`, and
+     racing round again every quarter second would hammer it for nothing. */
+  longPoll: true, shortReplies: 0,
+  /* The request currently being held open, so it can be abandoned. */
+  ctl: null, cancelled: false,
+  /* Consecutive failures, for the retry backoff. A failed sync used to
+     schedule nothing at all: the only thing that ever tried again was the
+     two-minute timer, so a server that took forty seconds to wake cost nearly
+     two minutes of dead air with the change sitting unsent. */
+  fails: 0,
+  /* When the request in flight started, so a request that somehow never
+     returns cannot wedge the app for the life of the page. */
+  startedAt: 0,
+  /* The first sync after launch asks for everything rather than "changes
+     since N". It is the one moment the phone can check its whole picture
+     against the server's, which matters if its counter is ever ahead of the
+     server's — after a restore, or if the database is ever rebuilt. Rows are
+     reconciled by id, so asking twice changes nothing. */
+  fullPull: true
+};
+
+/* Bounded exponential backoff: 2s, 4s, 8s, 16s, 32s, then once a minute for
+   as long as it stays broken. Fast enough to ride out a cold start in a few
+   seconds, slow enough that a genuinely dead server is not hammered. */
+const BACKOFF = [2000, 4000, 8000, 16000, 32000, 60000];
+function backoffMs() { return BACKOFF[Math.min(SYNC.fails, BACKOFF.length - 1)]; }
+
+/* A request in flight for longer than this is not in flight any more. Longer
+   than any legitimate one: a held request is capped at 15s server-side and
+   every request is abandoned at 20s. */
+const SYNC_STUCK_MS = 45000;
+function unwedge() {
+  if (SYNC.running && SYNC.startedAt && Date.now() - SYNC.startedAt > SYNC_STUCK_MS) {
+    SYNC.running = false; SYNC.ctl = null; SYNC.startedAt = 0;
+  }
+}
+/** Stop waiting, now.
+ *
+ *  A held request can sit for fifteen seconds. Anything this phone wants to
+ *  send has to go out before then, or adding an expense would look frozen
+ *  for a quarter of a minute. So the wait is abandoned rather than queued
+ *  behind: nothing is lost, because a request is only held when there was
+ *  nothing to push and nothing came back. */
+function cancelHold() {
+  if (!SYNC.ctl) return;
+  SYNC.cancelled = true;
+  try { SYNC.ctl.abort(); } catch (e) {}
+  SYNC.ctl = null;
+}
+/** Resolve once no sync is in flight, or false if one is still going after
+ *  `ms`. Used only by manual syncs, which have someone waiting on the answer. */
+function settleInFlight(ms) {
+  return new Promise(resolve => {
+    const started = Date.now();
+    (function look() {
+      if (!SYNC.running) return resolve(true);
+      if (Date.now() - started > ms) return resolve(false);
+      setTimeout(look, 40);
+    })();
+  });
+}
 function serverUrl() { return String(LS.get("sl.server", "") || "").replace(/\/+$/, ""); }
 function syncSeq() { return LS.get("sl.syncSeq", 0) || 0; }
-function dirtySet() { return LS.get("sl.dirty", { groups: [], expenses: [], settlements: [] }); }
+function dirtySet() { return LS.get("sl.dirty", { groups: [], expenses: [], settlements: [], hidden: [] }); }
 function markDirty(kind, id) {
   if (!SYNC_ENABLED || !id) return;
   const d = dirtySet();
   if (!d[kind]) d[kind] = [];
   if (d[kind].indexOf(id) < 0) d[kind].push(id);
   LS.set("sl.dirty", d);
+  cancelHold();
   scheduleSync(1200);
 }
 function setSyncState(state, error) {
@@ -2504,6 +2732,25 @@ function scheduleSync(ms) {
   SYNC.timer = setTimeout(() => syncNow(false), ms || 1200);
 }
 
+/* Every request gets a deadline. This is not a nicety: the one request that
+   did not have one — the token refresh — could be accepted and never answered
+   by a host that was still waking up, and then nothing anywhere gave up. The
+   sync that was waiting on it never returned, `SYNC.running` stayed true for
+   the life of the page, and every later sync bounced straight back off it. The
+   app sat on "Syncing…" until it was force-closed. */
+const NET_TIMEOUT = 20000;
+async function timedFetch(url, init, ms, register) {
+  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  if (ctl && register) register(ctl);
+  const t = ctl ? setTimeout(() => ctl.abort(), ms || NET_TIMEOUT) : null;
+  try {
+    return await fetch(url, Object.assign({}, init || {},
+      { signal: ctl ? ctl.signal : undefined }));
+  } finally {
+    if (t) clearTimeout(t);
+  }
+}
+
 async function api(path, body, opts) {
   opts = opts || {};
   const base = serverUrl();
@@ -2511,19 +2758,15 @@ async function api(path, body, opts) {
   const id = myIdentity();
   const headers = { "Content-Type": "application/json" };
   if (id && id.accessToken && !opts.noAuth) headers["Authorization"] = "Bearer " + id.accessToken;
-  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const t = ctl ? setTimeout(() => ctl.abort(), 20000) : null;
   let res;
   try {
-    res = await fetch(base + path, {
-      method: "POST", headers: headers, body: JSON.stringify(body || {}),
-      signal: ctl ? ctl.signal : undefined
-    });
+    res = await timedFetch(base + path, {
+      method: "POST", headers: headers, body: JSON.stringify(body || {})
+    }, opts.timeout, opts.register);
   } catch (e) {
-    if (t) clearTimeout(t);
-    throw new Error("offline");
+    // Told to stop waiting because there is something to send. Not a failure.
+    throw new Error(opts.register && SYNC.cancelled ? "cancelled" : "offline");
   }
-  if (t) clearTimeout(t);
 
   if (res.status === 401 && !opts.noAuth && !opts.retried && id) {
     // The session went stale. Get a new one and carry on; only give up if
@@ -2586,7 +2829,9 @@ async function doRefresh() {
   if (!id || !id.refreshToken) return false;
   try {
     const base = serverUrl();
-    const res = await fetch(base + "/auth/refresh-token", {
+    // Deadline, like everything else. Without one this call could hang for
+    // ever and take the whole sync loop down with it.
+    const res = await timedFetch(base + "/auth/refresh-token", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: id.refreshToken })
     });
@@ -2604,7 +2849,7 @@ function syncableGroups() { return S.groups.filter(g => !g.sample && !g.localOnl
 
 function buildPush() {
   const d = dirtySet();
-  const out = { groups: [], members: [], expenses: [], settlements: [] };
+  const out = { groups: [], members: [], expenses: [], settlements: [], hidden: [] };
   const skipped = { groups: [], expenses: [], settlements: [] };
   const gById = {};
   syncableGroups().forEach(g => (gById[g.id] = g));
@@ -2645,12 +2890,25 @@ function buildPush() {
       updated_at: s.updatedAt || nowISO()
     });
   });
+  (d.hidden || []).forEach(gid => out.hidden.push({ group_id: gid, hidden: isHidden(gid) }));
   out.__skipped = skipped;
   return out;
 }
 
 function applyPull(data) {
   let changed = false;
+  /* The server keeps each account's own list of groups it has removed from
+     view, and sends it whole. Adopt it — but never lose a change made here
+     that has not been sent yet, so anything still pending is laid back on top.
+     An older server sends no list at all and this does nothing. */
+  if (Array.isArray(data.hidden)) {
+    const pending = (dirtySet().hidden || []);
+    const mine = hiddenGroupIds();
+    const next = data.hidden.filter(id => pending.indexOf(id) < 0)
+      .concat(pending.filter(id => mine.indexOf(id) >= 0));
+    const now = next.filter((id, i) => next.indexOf(id) === i);
+    if (now.join("|") !== mine.join("|")) { LS.set("sl.hidden", now); changed = true; }
+  }
   (data.groups || []).forEach(row => {
     let g = S.groups.find(x => x.id === row.id);
     if (!g) {
@@ -2658,6 +2916,9 @@ function applyPull(data) {
       S.groups.push(g);
     }
     g.name = row.name; g.currency = row.currency;
+    // Who created it, settled by the server. This is what decides whether the
+    // Delete button on this phone deletes for everyone or only here.
+    if (row.created_by) g.ownerId = row.created_by;
     g.deleted = !!row.deleted; g.updatedAt = row.updated_at;
     changed = true;
   });
@@ -2709,22 +2970,63 @@ function clearPushed(push) {
   ["groups", "expenses", "settlements"].forEach(k => {
     d[k] = (d[k] || []).filter(id => !done[k].has(id));
   });
+  const sentHidden = new Set((push.hidden || []).map(x => x.group_id));
+  d.hidden = (d.hidden || []).filter(id => !sentHidden.has(id));
   LS.set("sl.dirty", d);
-  return d.groups.length + d.expenses.length + d.settlements.length;
+  return d.groups.length + d.expenses.length + d.settlements.length + d.hidden.length;
 }
 
 async function syncNow(manual) {
   if (!SYNC_ENABLED) return false;
-  if (SYNC.running) { scheduleSync(1500); return false; }   // come back, don't just drop it
+  unwedge();
+  if (SYNC.running) {
+    cancelHold();          // if what is in flight is only a wait, cut it short
+    if (!manual) { scheduleSync(1500); return false; }
+    /* A manual sync is a person standing there waiting for an answer — they
+       tapped Save, or the connection check. Returning false here says "that
+       failed", and the caller duly reports *Couldn't reach that server*, when
+       in truth the server is fine and we were merely mid-request. Since the
+       app now spends most of its time holding a request open, that made Save
+       look broken almost every time. So: wait for the request in flight to let
+       go — it has just been cancelled, so that is milliseconds — and then do
+       the real sync and report what actually happened. */
+    if (!(await settleInFlight(5000))) {
+      setSyncState("busy");
+      return false;
+    }
+  }
   if (!myIdentity()) { setSyncState("off"); return false; }
   if (!serverUrl()) { setSyncState("local"); return false; }
   SYNC.running = true;
-  setSyncState("busy");
+  SYNC.startedAt = Date.now();
   try {
     const push = buildPush();
     const wire = { groups: push.groups, members: push.members,
-                   expenses: push.expenses, settlements: push.settlements };
-    const data = await api("/sync", { since: syncSeq(), changes: wire });
+                   expenses: push.expenses, settlements: push.settlements,
+                   hidden: push.hidden };
+    /* Long poll. With nothing of our own to send and the app on screen, ask the
+       server to hold the request until something appears rather than hanging up
+       and asking again later — a group someone else makes then shows up in about
+       a second instead of after the next poll. The server caps its side at 15s,
+       comfortably inside the 20s this end gives up at. */
+    const idle = !wire.groups.length && !wire.members.length &&
+                 !wire.expenses.length && !wire.settlements.length &&
+                 !wire.hidden.length;
+    const holdFor = (idle && !manual && !document.hidden && SYNC.longPoll) ? SYNC_HOLD : 0;
+    /* A held request is waiting, not working. Showing "Syncing…" for the
+       fifteen seconds it sits there would leave the app looking permanently
+       busy, when in fact it is up to date and listening. */
+    if (!holdFor) setSyncState("busy");
+    const startedAt = Date.now();
+    SYNC.cancelled = false;
+    // First sync of this launch: ask for the lot and reconcile, rather than
+    // trusting a counter this phone has been carrying around.
+    const since = SYNC.fullPull ? 0 : syncSeq();
+    const data = await api("/sync", { since: since, changes: wire, wait: holdFor },
+      holdFor ? { register: c => { SYNC.ctl = c; } } : undefined);
+    SYNC.ctl = null;
+    SYNC.fullPull = false;
+    SYNC.fails = 0;
     const changed = applyPull(data);
     LS.set("sl.syncSeq", data.seq || syncSeq());
     const stillDirty = clearPushed(push);
@@ -2735,13 +3037,13 @@ async function syncNow(manual) {
     }
     setSyncState("ok");
     if (changed) {
-      const current = S.groups.find(g => g.id === S.gid && !g.deleted);
+      const current = liveGroups().find(g => g.id === S.gid);
       // Land on a real group. Sitting on the built-in sample after a sync
       // means anything you add goes into demo data that never leaves the phone.
       const onSample = !current || current.sample;
       if (onSample) {
-        const real = S.groups.filter(g => !g.deleted && !g.sample);
-        const pick = real.length ? real[real.length - 1] : S.groups.find(g => !g.deleted);
+        const real = liveGroups().filter(g => !g.sample);
+        const pick = real.length ? real[real.length - 1] : liveGroups()[0];
         S.gid = pick ? pick.id : null;
         LS.set("sl.lastGroup", S.gid);
       }
@@ -2749,10 +3051,28 @@ async function syncNow(manual) {
       render();
     } else { drawSyncBar(); }
     SYNC.running = false;
+    if (holdFor) {
+      const heldFor = Date.now() - startedAt;
+      if (!changed && heldFor < 2000) {
+        // It came back at once with nothing: this server does not know about
+        // `wait`. Three of those and we stop asking, and fall back to the
+        // periodic poll, rather than spinning.
+        if (++SYNC.shortReplies >= 3) SYNC.longPoll = false;
+      } else {
+        SYNC.shortReplies = 0;
+      }
+    }
+    /* Straight back to waiting. Without this the app would sit out the full
+       two-minute poll after every push, so the phone that created a group
+       would be the last to learn what anyone did in it. */
+    if (SYNC.longPoll && !document.hidden && !stillDirty) scheduleSync(holdFor ? 250 : 400);
     return true;
   } catch (e) {
     SYNC.running = false;
+    SYNC.ctl = null;
     const m = e && e.message;
+    // We stopped the wait ourselves because there is something to send.
+    if (m === "cancelled") { SYNC.cancelled = false; scheduleSync(60); return false; }
     if (m === "offline") setSyncState("offline");
     else if (m === "signed-out") {
       // Refreshing failed AND signing in again failed. Something needs a
@@ -2766,6 +3086,12 @@ async function syncNow(manual) {
     if (manual && m !== "signed-out") {
       toast(SYNC.state === "offline" ? "No connection — changes are saved here and will sync later" : (SYNC.error || "Sync failed"));
     }
+    /* Try again, sooner than the two-minute tick and with a widening gap. A
+       host that sleeps when idle takes thirty to sixty seconds to wake, and
+       every request during that window is abandoned at twenty — so without
+       this the first group made after a quiet spell sat unsent for minutes. */
+    SYNC.fails++;
+    if (!document.hidden) scheduleSync(backoffMs());
     return false;
   }
 }
@@ -2875,6 +3201,198 @@ function drawSyncBar() {
   }));
 }
 
+/* ---------- connection check ----------
+ *
+ * "I made a group and it hasn't turned up on his phone" has about six possible
+ * causes and the app used to show none of them: the status dot says *Synced*
+ * in most of them, because as far as this phone is concerned everything went
+ * fine. The one that actually bites — a member whose number nobody has ever
+ * signed in with — is completely invisible from here.
+ *
+ * So: one screen that answers the question. Everything on it is already known
+ * to the app or one unauthenticated GET away, and no token, password or
+ * server secret appears, so the result is safe to screenshot and send on.
+ */
+function checkRow(mark, text, detail) {
+  const cls = mark === "ok" ? "good" : mark === "no" ? "bad" : "warn";
+  const glyph = mark === "ok" ? "✓" : mark === "no" ? "✕" : "!";
+  const tx = el("div", { class: "tx", html: text });
+  if (detail) tx.appendChild(el("span", { text: detail }));
+  return el("div", { class: "chk" }, [el("div", { class: "mk " + cls, text: glyph }), tx]);
+}
+
+/** GET, unauthenticated, short fuse. `api()` only speaks POST-with-a-token. */
+async function ping(path) {
+  const base = serverUrl();
+  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const t = ctl ? setTimeout(() => ctl.abort(), 25000) : null;
+  const at = Date.now();
+  try {
+    const res = await fetch(base + path, { method: "GET", signal: ctl ? ctl.signal : undefined });
+    if (t) clearTimeout(t);
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    return { ok: res.ok, status: res.status, data: data, ms: Date.now() - at };
+  } catch (e) {
+    if (t) clearTimeout(t);
+    return { ok: false, status: 0, data: null, ms: Date.now() - at };
+  }
+}
+
+async function openCheckModal() {
+  const list = el("div");
+  const plain = [];
+  const add = (mark, html, detail, text) => {
+    list.appendChild(checkRow(mark, html, detail));
+    plain.push((mark === "ok" ? "OK   " : mark === "no" ? "FAIL " : "NOTE ") + (text || html.replace(/<[^>]*>/g, "")));
+  };
+  const copyBox = el("textarea", { readonly: "readonly", rows: "2",
+    style: "position:absolute;left:-9999px;top:0" });
+  const copyBtn = el("button", {
+    class: "btn", text: "Copy this",
+    onclick: () => {
+      copyBox.value = plain.join("\n");
+      try {
+        copyBox.select(); copyBox.setSelectionRange(0, 99999);
+        document.execCommand("copy");
+        toast("Copied — you can paste it into a message");
+      } catch (e) { toast("Couldn't copy — take a screenshot instead"); }
+    }
+  });
+  openModal("Connection check", [list, copyBox],
+    [copyBtn, el("button", { class: "btn btn-primary", text: "Close", onclick: closeModal })]);
+
+  list.appendChild(el("p", { class: "hint", text: "Checking…" }));
+
+  const base = serverUrl();
+  const id = myIdentity();
+  const results = [];
+
+  /* 1 — is there a server at all */
+  if (!base) {
+    results.push(["no", "<b>Syncing is off on this phone.</b>",
+      "There is no server address in Account, so nothing leaves this phone and nothing arrives. Put the address in and tap Save."]);
+  } else {
+    const h = await ping("/health");
+    if (h.ok) {
+      const build = h.data && h.data.build;
+      results.push(["ok", "<b>Server is answering.</b>", base + " — replied in " + h.ms + "ms"]);
+      if (build) {
+        results.push([build === APP_VERSION ? "ok" : "warn",
+          "<b>Server is running build " + esc(String(build)) + ".</b>",
+          build === APP_VERSION
+            ? "Same build as this app."
+            : "This app is " + APP_VERSION + ". They do not have to match, but if the server is older it will be missing recent fixes — redeploy it."]);
+      } else {
+        results.push(["warn", "<b>Server is running an old build.</b>",
+          "It is older than 3.3 — old enough that it cannot report its version. Groups still sync, but slowly (up to two minutes) and without the newer fixes. Redeploy it."]);
+      }
+    } else if (h.status) {
+      results.push(["no", "<b>The server answered with an error.</b>",
+        "HTTP " + h.status + " from " + base + ". If this is a hosting page rather than the app, the deploy has failed or is still running."]);
+    } else {
+      results.push(["no", "<b>Cannot reach the server.</b>",
+        "Nothing came back from " + base + " in " + Math.round(h.ms / 1000) + "s. On a free host the machine sleeps when unused and takes up to a minute to wake — wait a minute and check again. If it never answers, the deploy is down."]);
+    }
+  }
+
+  /* 2 — who this phone thinks it is */
+  if (!id || !id.mobile) {
+    results.push(["no", "<b>Not signed in on this phone.</b>", "Tap Account and sign in with your mobile number."]);
+  } else {
+    results.push(["ok", "<b>Signed in as " + esc(prettyPhone(id.mobile)) + ".</b>",
+      id.accessToken ? "This phone has a live session." : "No session token yet — it will sign in again on the next sync."]);
+  }
+
+  /* 3 — try an actual sync, which is the thing that is failing */
+  if (base && id) {
+    const ok = await syncNow(true);
+    results.push([ok ? "ok" : "no",
+      ok ? "<b>A sync just completed.</b>" : "<b>The sync just failed.</b>",
+      ok ? "Everything on this phone has been sent and everything waiting has been collected."
+         : (SYNC.error || (SYNC.state === "busy"
+              ? "A sync was already running and had not finished. Nothing is wrong — try the check again."
+              : "No reason given."))]);
+  }
+
+  /* 4 — anything stuck in the outbox */
+  const d = dirtySet();
+  const waiting = (d.groups || []).length + (d.expenses || []).length + (d.settlements || []).length;
+  if (waiting) {
+    results.push(["warn", "<b>" + waiting + " change" + (waiting === 1 ? "" : "s") + " still waiting to be sent.</b>",
+      "They are saved here and will go as soon as the server can be reached."]);
+  }
+
+  /* 5 — the one that is normally the answer.
+   *
+   * A member only reaches a real person through their mobile number, and only
+   * once somebody has signed in with that exact number. Until then the row is
+   * a placeholder: the group looks perfectly healthy on this phone and simply
+   * does not exist on theirs. */
+  const g = S.group;
+  if (g) {
+    const mems = liveMembers(g);
+    const mine = myPhone();
+    results.push(["ok", "<b>Group “" + esc(g.name) + "” — " + mems.length + " member" + (mems.length === 1 ? "" : "s") + ".</b>",
+      "Checking who can actually receive it."]);
+    mems.forEach(m => {
+      const who = displayNameFor(m);
+      if (!m.phone) {
+        results.push(["warn", "&nbsp;&nbsp;<b>" + esc(who) + "</b> — no mobile number",
+          "This person exists only on this phone. Add their number so the group can reach them.",
+          "  " + who + " - no mobile number, cannot receive the group"]);
+      } else if (m.phone === mine) {
+        results.push(["ok", "&nbsp;&nbsp;<b>" + esc(who) + "</b> — " + esc(prettyPhone(m.phone)) + " (you)", null,
+          "  " + who + " - " + prettyPhone(m.phone) + " (you)"]);
+      } else if (m.userId) {
+        results.push(["ok", "&nbsp;&nbsp;<b>" + esc(who) + "</b> — " + esc(prettyPhone(m.phone)),
+          "Matched to an account. This group is on their phone, or will be the next time they open the app.",
+          "  " + who + " - " + prettyPhone(m.phone) + " - matched to an account"]);
+      } else {
+        results.push(["no", "&nbsp;&nbsp;<b>" + esc(who) + "</b> — " + esc(prettyPhone(m.phone)),
+          "Nobody has signed in with this number yet, so the group cannot appear on their phone. They must open Split Buddy and sign in with exactly this number — a different number, even by one digit, is a different person.",
+          "  " + who + " - " + prettyPhone(m.phone) + " - NO ACCOUNT, cannot receive the group"]);
+      }
+    });
+  }
+
+  list.innerHTML = "";
+  results.forEach(r => add(r[0], r[1], r[2], r[3]));
+  drawSyncBar();
+}
+
+/** The way back from "remove from my phone".
+ *
+ *  Hiding a group is meant to be reversible — it takes nothing away from
+ *  anyone, so there is no reason to make it final. Groups removed this way are
+ *  listed here with a Restore next to each, and the section is simply absent
+ *  when there are none. */
+function hiddenGroupsField() {
+  const ids = hiddenGroupIds();
+  const rows = ids.map(id => {
+    const g = S.groups.find(x => x.id === id);
+    // Still hidden but no longer on this phone at all: the creator deleted it
+    // for everyone in the meantime. Nothing to restore, so drop it quietly.
+    if (!g || g.deleted) { unhideGroup(id); return null; }
+    const row = el("div", { class: "memberrow", style: "align-items:center" }, [
+      el("span", { style: "flex:1;min-width:0;overflow-wrap:anywhere", text: g.name }),
+      el("button", {
+        class: "btn btn-sm", type: "button", text: "Restore",
+        onclick: () => { unhideGroup(g.id); closeModal(); selectGroup(g.id); toast("“" + g.name + "” is back"); }
+      })
+    ]);
+    return row;
+  }).filter(Boolean);
+  if (!rows.length) return null;
+  return el("div", { class: "field" }, [
+    el("label", { text: "Removed from this phone" }),
+    el("div", {}, rows),
+    el("div", { class: "hint", text: rows.length === 1
+      ? "This group is still running for everyone else — it is just hidden here."
+      : "These groups are still running for everyone else — they are just hidden here." })
+  ]);
+}
+
 function openAccountModal() {
   const id = myIdentity();
   const urlIn = el("input", { type: "url", inputmode: "url", autocapitalize: "off",
@@ -2902,7 +3420,16 @@ function openAccountModal() {
     ]),
     field("Sync server", urlIn,
       "The address of your Split Buddy server. Leave it empty to keep everything on this phone."),
-    warn, note
+    warn, note,
+    el("div", { class: "field" }, [
+      el("label", { text: "Not syncing?" }),
+      el("button", {
+        class: "btn", type: "button", text: "Connection check",
+        onclick: () => { closeModal(); openCheckModal(); }
+      }),
+      el("div", { class: "hint", text: "Checks the server, this phone's sign-in, and — most usefully — whether everyone in your current group has actually signed in with the number you added. Safe to screenshot." })
+    ]),
+    hiddenGroupsField()
   ];
 
   const save = el("button", {
@@ -2918,6 +3445,7 @@ function openAccountModal() {
       }
       const ok = await syncNow(true);
       if (ok) { closeModal(); toast("Connected — your groups are syncing"); }
+      else if (SYNC.state === "busy") { note.textContent = "Still syncing — give it a moment and tap Save again."; }
       else { note.textContent = SYNC.error || "Couldn't reach that server."; }
     }
   });

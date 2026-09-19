@@ -50,5 +50,20 @@ services:
       - key: RL_AUTH_PER_IP
         value: "2000"
 
+      # Sized before the app held requests open. An idle phone with the app on
+      # screen now makes about 280 sync requests an hour, which is half of the
+      # old 600 budget spent doing nothing — two busy phones on one account, or
+      # a spell of heavy use, would have started getting 429s and looked
+      # exactly like "sync has stopped working".
+      - key: RL_SYNC_PER_USER
+        value: "3000"
+
+      # The default is 10 an hour. The app signs in again by itself when a
+      # refresh token turns out to be unusable, so ten is close enough to
+      # normal behaviour to lock a real person out of their own account for an
+      # hour. Still low enough to be a brake on anything automated.
+      - key: RL_AUTH_PER_NUMBER
+        value: "60"
+
       - key: LOG_LEVEL
         value: "INFO"

@@ -77,12 +77,13 @@ class Phone:
     def headers(self):
         return {"Authorization": f"Bearer {self.access}"}
 
-    async def sync(self, **changes):
-        payload = {"since": self.seq, "changes": {
+    async def sync(self, wait=0, **changes):
+        payload = {"since": self.seq, "wait": wait, "changes": {
             "groups": changes.get("groups", []),
             "members": changes.get("members", []),
             "expenses": changes.get("expenses", []),
             "settlements": changes.get("settlements", []),
+            "hidden": changes.get("hidden", []),
         }}
         r = await self.client.post("/sync", json=payload, headers=self.headers)
         assert r.status_code == 200, r.text

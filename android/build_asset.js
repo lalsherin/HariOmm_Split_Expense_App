@@ -248,7 +248,8 @@ localLoad();
 dropDemoGroup();
 S.ready = true;
 S.gid = LS.get("sl.lastGroup", null);
-if (!S.gid || !S.groups.some(g => g.id === S.gid)) S.gid = S.groups[0] ? S.groups[0].id : null;
+// A group hidden on this phone must not be the one we open on.
+if (!S.gid || !liveGroups().some(g => g.id === S.gid)) S.gid = liveGroups()[0] ? liveGroups()[0].id : null;
 S.group = S.groups.find(g => g.id === S.gid) || null;
 render();
 

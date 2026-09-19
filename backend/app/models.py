@@ -134,6 +134,25 @@ class GroupMember(Base):
     __table_args__ = (Index("ix_member_group_phone", "group_id", "phone_e164"),)
 
 
+class GroupHidden(Base):
+    """One person has removed a group from their own view.
+
+    This is NOT a deletion. The group carries on for everyone else, this
+    person stays in it, and their share of every expense still counts. It is
+    the difference the data model previously could not express: `Group.deleted`
+    means gone for everybody, and this means gone for one account.
+
+    It lives here rather than only on the phone so that it survives a
+    reinstall, and so a second device belonging to the same person agrees. It
+    is never sent to anybody else — the pull returns each account only its own
+    list — because the whole point is that nobody is told.
+    """
+    __tablename__ = "group_hidden"
+    user_id = Column(String(36), ForeignKey("users.id"), primary_key=True)
+    group_id = Column(String(64), ForeignKey("groups.id"), primary_key=True)
+    hidden_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+
 class Expense(Base):
     __tablename__ = "expenses"
     id = Column(String(64), primary_key=True)
@@ -175,6 +194,6 @@ class Settlement(Base):
 
 __all__ = [
     "Base", "Counter", "User", "Session", "LoginHistory", "OtpChallenge",
-    "RateLimit", "Group", "GroupMember", "Expense", "Settlement",
+    "RateLimit", "Group", "GroupMember", "GroupHidden", "Expense", "Settlement",
     "new_id", "utcnow",
 ]

@@ -4,6 +4,11 @@ A shared-expense ledger for groups — trips, flatmates, dinner clubs. Track who
 paid for what, split it five different ways, and settle up in the fewest
 possible payments.
 
+**Start with [`docs/PROJECT.md`](docs/PROJECT.md)** — the project handbook: what
+everything is called and why those names must not change, how the pieces are
+joined, how two phones find each other, the release routine, and which
+decisions are already settled.
+
 Three parts:
 
 - **Web** — `web/split-ledger.html`, a single self-contained page.
@@ -11,8 +16,8 @@ Three parts:
   contact picking, and cross-phone sync. Works fully offline; syncs when it
   can reach your server.
 - **Server** — `backend/`, mobile-number identity and cross-device sync, so a
-  group created on one phone appears on everyone else's. Not deployed; see
-  [`backend/README.md`](backend/README.md).
+  group created on one phone appears on everyone else's. Deployed on Render
+  with a Neon database — see [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ---
 
