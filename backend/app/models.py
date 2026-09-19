@@ -46,6 +46,14 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
+    # Last authenticated request from this account, written at most once every
+    # LAST_SEEN_EVERY seconds so that an app holding a sync request open does
+    # not turn into one database write per request.
+    last_seen_at = Column(DateTime(timezone=True), nullable=True)
+    # The build the phone last talked to us with, taken from the X-App-Version
+    # header. Kept so that "which version is this person on?" is answerable
+    # without asking them, which is most of the work in any sync complaint.
+    app_version = Column(String(20), nullable=True)
 
 
 class Session(Base):

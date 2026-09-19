@@ -136,6 +136,13 @@ async def sign_in(
     user, created = await service.register_or_login(db, mobile, body.name)
     if settings.require_otp and not user.mobile_verified:
         user.mobile_verified = True
+    # Signing in is the one moment the build is guaranteed to be reported,
+    # since a session lasts 30 days and a phone may not sign in again for
+    # weeks. Every authenticated request refreshes it after that.
+    version = request.headers.get("x-app-version")
+    if version:
+        user.app_version = str(version).strip()[:20]
+    user.last_seen_at = utcnow()
 
     await service.claim_memberships(db, user)
     access, refresh, _ = await service.issue_session(

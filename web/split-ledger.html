@@ -2557,7 +2557,7 @@ function prettyPhone(e164) {
    build script so it cannot quietly drift. Shown in the connection check, next
    to the server's own build, because "is the server actually running what I
    pushed?" is otherwise unanswerable from a phone. */
-const APP_VERSION = "3.4";
+const APP_VERSION = "3.5";
 
 function myIdentity() { return LS.get("sl.identity", null); }
 function myPhone() { const i = myIdentity(); return i ? i.mobile : null; }
@@ -2756,7 +2756,7 @@ async function api(path, body, opts) {
   const base = serverUrl();
   if (!base) throw new Error("no-server");
   const id = myIdentity();
-  const headers = { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json", "X-App-Version": APP_VERSION };
   if (id && id.accessToken && !opts.noAuth) headers["Authorization"] = "Bearer " + id.accessToken;
   let res;
   try {
@@ -2832,7 +2832,8 @@ async function doRefresh() {
     // Deadline, like everything else. Without one this call could hang for
     // ever and take the whole sync loop down with it.
     const res = await timedFetch(base + "/auth/refresh-token", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-App-Version": APP_VERSION },
       body: JSON.stringify({ refresh_token: id.refreshToken })
     });
     if (!res.ok) return false;

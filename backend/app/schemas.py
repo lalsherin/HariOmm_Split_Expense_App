@@ -1,5 +1,6 @@
 """Request and response shapes. Pydantic rejects anything malformed before it
 reaches a handler."""
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,12 +24,19 @@ class RefreshRequest(BaseModel):
 
 
 class UserOut(BaseModel):
+    """One account's own record. Returned to that account and nowhere else —
+    there is no endpoint anywhere that lists users or returns somebody else's
+    row, and adding one would hand out a list of mobile numbers."""
     model_config = ConfigDict(from_attributes=True)
     id: str
     mobile_number: str
     name: str
     mobile_verified: bool
     account_status: str
+    created_at: Optional[datetime] = None
+    last_login_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
+    app_version: Optional[str] = None
 
 
 class SignInResponse(BaseModel):

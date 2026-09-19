@@ -11,7 +11,17 @@ sys.path.insert(0, str(ROOT))
 # Must be set before the app is imported: config is cached and the engine is
 # built at import time.
 DB_FILE = ROOT / "test_split_ledger.db"
-os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{DB_FILE}"
+# SQLite by default: no service to start, and the suite runs in 25 seconds.
+# Point TEST_DATABASE_URL at a real Postgres to run the same suite against the
+# engine production actually uses — the two differ in ways that matter (column
+# types, ALTER TABLE support, transaction behaviour), and a green SQLite run is
+# not by itself evidence that Neon is fine.
+os.environ["DATABASE_URL"] = os.environ.get(
+    "TEST_DATABASE_URL", f"sqlite+aiosqlite:///{DB_FILE}")
+if "TEST_DATABASE_URL" in os.environ:
+    # Each test gets its own event loop; a pooled asyncpg connection belongs to
+    # the loop that opened it. No pool, no cross-loop reuse.
+    os.environ["DB_POOL"] = "null"
 os.environ["REQUIRE_OTP"] = "false"
 os.environ["RL_AUTH_PER_NUMBER"] = "1000"
 os.environ["RL_AUTH_PER_IP"] = "1000"
@@ -63,9 +73,10 @@ class Phone:
         self.user = None
         self.seq = 0
 
-    async def sign_in(self, **extra):
+    async def sign_in(self, headers=None, **extra):
         r = await self.client.post("/auth/sign-in", json={
-            "mobile_number": self.number, "name": self.name, **extra})
+            "mobile_number": self.number, "name": self.name, **extra},
+            headers=headers or {})
         assert r.status_code == 200, r.text
         body = r.json()
         self.access = body["access_token"]

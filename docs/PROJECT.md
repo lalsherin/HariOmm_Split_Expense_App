@@ -5,7 +5,7 @@ this project is, what the pieces are called, how they are joined together, and
 which decisions are already settled and why. Everything else in `docs/` goes
 deeper on one topic; this is the map.
 
-Last updated for **3.3 (versionCode 17)**, 17 September 2026.
+Last updated for **3.5 (versionCode 19)**, 19 September 2026.
 
 ---
 
@@ -137,7 +137,7 @@ backend/          the sync server (FastAPI + SQLAlchemy + Postgres)
   app/sync/service.py     <- push/pull, the rules about who may change what
   app/sync/router.py      <- the /sync endpoint, including long polling
   app/auth/service.py     <- sign-in, refresh-token rotation
-  tests/                  <- 58 tests
+  tests/                  <- 78 tests, runnable on SQLite or real Postgres
 web/split-ledger.html     <- THE APP. ~3,700 lines. Everything the user sees.
 docs/             BUILD.md (changelog + how it is built), DEPLOY.md, INSTALL.txt, this file
 render.yaml       the Render service, described so there is no form to mistype
@@ -153,6 +153,48 @@ a line the asset builder is looking for, you find out immediately rather than
 shipping a half-built app.
 
 ---
+
+## 5b. Who has signed up — the user registry
+
+One row per person in `users`, keyed by their mobile number in E.164. The same
+number written three ways collapses to one account, which is what stops
+somebody ending up with two accounts and none of their groups.
+
+| column | what it is |
+|---|---|
+| `id` | uuid4 string, stable for the life of the account |
+| `mobile_number` | E.164, **unique and indexed** — this is the identity |
+| `name` | display name, as they typed it at sign-in |
+| `created_at` | when they first signed in |
+| `last_login_at` | server UTC, written on every successful sign-in |
+| `last_seen_at` | last authenticated request, written at most once per 15 min |
+| `app_version` | the build their phone last used, from `X-App-Version` |
+| `account_status` | `active`. This is the is-active flag; nothing sets it to anything else automatically |
+| `mobile_verified` | true only once OTP verification is switched on |
+
+Every sign-in — successful or not — is also recorded in `login_history`
+(time, platform, device string, IP, and the outcome). That table is what
+answers "did they even reach the server?".
+
+**To see who has registered**, open the Neon SQL editor and run:
+
+```sql
+select name, mobile_number, app_version,
+       created_at, last_login_at, last_seen_at, account_status
+from users
+order by last_seen_at desc nulls last;
+```
+
+There is deliberately **no API endpoint that lists users.** `/users/me`
+returns one account's own row and nothing else; there is nothing anywhere that
+returns somebody else's. An endpoint that listed everyone would be an endpoint
+that hands out a list of mobile numbers, and it would exist on a server with
+`REQUIRE_OTP=false`, where anybody can sign in as any number. Neon's own
+console is already an authenticated admin view; it does not need a second one.
+
+To deactivate an account, set `account_status` to anything but `active` — the
+auth dependency then refuses every request from it with 403. Nothing does this
+automatically; being dormant is not a reason to be locked out.
 
 ## 6. Versions
 
@@ -326,7 +368,11 @@ Not bugs that bite at this size, but they are real:
   creating the same counter return **500** instead of 429.
 - An idle sync costs 12 queries and a write; four small changes take it to
   about three and none.
-- **No database migrations.** A schema change needs Alembic or a manual `DROP`.
+- **No Alembic.** Missing tables are created at startup, and missing *columns*
+  are added by a narrow additive step in `database.py` (`_ensure_columns`) that
+  can only add a nullable column with no default. Anything else — renaming,
+  dropping, changing a type, backfilling — still needs a considered migration,
+  and Alembic is the right answer the first time one is needed.
 - `allowBackup="true"` — Android may restore stale data onto a new install.
 - No leave-group, block, report, or in-app account deletion. Google Play
   requires account deletion before a public listing.

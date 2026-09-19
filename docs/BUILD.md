@@ -110,6 +110,65 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 3.5 (versionCode 19)
+
+**A central record of who has signed up.** Most of it already existed — this
+extends it rather than adding a second identity system, which is what the
+request asked for and also the only safe option: `users` is what every session,
+group member and expense already points at.
+
+Already there, unchanged: `users.id` (uuid4), `mobile_number` (E.164, unique,
+indexed — the identity), `name`, `created_at`, `last_login_at`,
+`account_status` (the is-active flag), `mobile_verified`, and a full
+`login_history` table recording every sign-in attempt with its outcome.
+`register_or_login()` was already find-then-create-or-update keyed on the
+normalised number, so repeated sign-ins were already idempotent.
+
+Added:
+
+- **`users.last_seen_at`** — written by the auth dependency, which is the one
+  place every authenticated request passes through, so there is no separate
+  heartbeat endpoint to build or call. Throttled to **once per 15 minutes**:
+  a phone with the app on screen makes about 280 sync requests an hour, and
+  writing on each would be 280 pointless UPDATEs per user per hour on a
+  free-tier database to record something nobody needs to the second.
+- **`users.app_version`** — from a new `X-App-Version` header the app sends on
+  every request, taken from `APP_VERSION` so it cannot go stale. Captured at
+  sign-in too, since a session lasts 30 days and a phone may not sign in again
+  for weeks. "Which build is this person on?" is most of the work in any sync
+  complaint, and until now it was unanswerable.
+
+**Adding a column to a live table.** This is the part that could have broken
+Neon. `create_all` creates missing *tables*; it does not add missing *columns*.
+The moment `last_seen_at` existed in the models and not in the database, every
+query naming it would fail with UndefinedColumn — the whole server down, on
+deploy. `_ensure_columns()` in `database.py` closes that: idempotent, additive,
+dialect-aware, and deliberately able to do only one thing — add a nullable
+column with no default, which in Postgres is a catalogue update that does not
+rewrite the table. Anything else still needs a considered migration.
+
+Rehearsed rather than assumed: a local PostgreSQL was set up with the schema as
+it is in production today (old columns only) and real rows in `users`,
+`groups`, `group_members` and `expenses`. The upgrade path was then run exactly
+as a Render boot runs it. Columns added, `timestamp with time zone` not text,
+every existing row intact, new columns NULL on old rows, second run a no-op —
+then sign-in matched the *existing* account rather than creating a duplicate,
+`/users/me` returned the new fields, and sync returned the group and expense
+that were already there.
+
+**The suite now runs against real PostgreSQL**, not only SQLite:
+`TEST_DATABASE_URL=postgresql://… python3 -m pytest`. That needed `DB_POOL=null`
+(NullPool), because pytest gives each test its own event loop while a pooled
+asyncpg connection belongs to the loop that opened it — without it the suite
+cannot be run against the real engine at all, and "it passes on SQLite" is a
+weaker claim than it looks. **78 passed on both.**
+
+**No endpoint lists users.** `/users/me` returns one account's own row; nothing
+anywhere returns somebody else's. A listing endpoint would hand out mobile
+numbers, on a server where `REQUIRE_OTP=false` means anyone can sign in as any
+number. Neon's own console is already an authenticated admin view; `docs/PROJECT.md`
+has the query.
+
 ### 3.4 (versionCode 18)
 
 Two defects, both found by reproducing them rather than by reading.
