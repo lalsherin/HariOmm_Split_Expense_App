@@ -5,7 +5,7 @@ this project is, what the pieces are called, how they are joined together, and
 which decisions are already settled and why. Everything else in `docs/` goes
 deeper on one topic; this is the map.
 
-Last updated for **3.6 (versionCode 20)**, 20 September 2026.
+Last updated for **3.7 (versionCode 21)**, 20 September 2026.
 
 ---
 
@@ -130,6 +130,7 @@ android/          the phone build
   lint_registers.py       <- build guard (see below)
   check_version.py        <- build guard (see below)
   res/                    <- icons, app name, theme
+  make_icons.py           <- cuts every launcher icon out of brand/split-buddy-logo.png
 playstore/        the Google Play build — same code, its own manifest
   build_aab.sh            <- builds playstore/dist/split_expense.aab
   AndroidManifest.xml     <- targetSdk 36, no cleartext traffic
@@ -138,6 +139,7 @@ backend/          the sync server (FastAPI + SQLAlchemy + Postgres)
   app/sync/router.py      <- the /sync endpoint, including long polling
   app/auth/service.py     <- sign-in, refresh-token rotation
   tests/                  <- 80 tests, runnable on SQLite or real Postgres
+brand/split-buddy-logo.png  the supplied logo — every icon is generated from it
 web/split-ledger.html     <- THE APP. ~3,700 lines. Everything the user sees.
 docs/             BUILD.md (changelog + how it is built), DEPLOY.md, INSTALL.txt, this file
 render.yaml       the Render service, described so there is no form to mistype

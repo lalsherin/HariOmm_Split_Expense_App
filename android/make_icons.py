@@ -1,89 +1,196 @@
 #!/usr/bin/env python3
-"""Draw the Split Ledger launcher icon as PNGs. Pure stdlib (zlib + struct)."""
-import os, zlib, struct
+"""Cut the launcher icons out of the Split Buddy brand artwork.
 
-NAVY = (0x1B, 0x4F, 0xA0)
-WHITE = (0xFF, 0xFF, 0xFF)
-SS = 4  # supersampling factor
+Source: ../brand/split-buddy-logo.png — the supplied 1024x1024 logo, the mark
+above a wordmark on a dark tile.
 
+Two things have to happen to turn that into an app icon, and neither is
+optional:
 
-def write_png(path, w, h, rows):
-    raw = b"".join(b"\x00" + bytes(r) for r in rows)
-    def chunk(tag, data):
-        c = struct.pack(">I", len(data)) + tag + data
-        return c + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-    png = (b"\x89PNG\r\n\x1a\n"
-           + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
-           + chunk(b"IDAT", zlib.compress(raw, 9))
-           + chunk(b"IEND", b""))
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "wb") as f:
-        f.write(png)
+1. **The wordmark comes off.** A launcher icon is 48dp — about 9mm. "SplitBuddy
+   by Hexanxt" at that size is a grey smudge, and Google Play rejects icons
+   whose text is illegible. Only the mark survives.
 
+2. **The mark is cut out of its background rather than cropped with it.** An
+   adaptive icon is the foreground layer alone, masked to whatever shape the
+   launcher wants — circle, squircle, teardrop — over a separate background.
+   A foreground that carried its own dark square would show as a dark square
+   inside the mask, with the real background never visible.
 
-def in_round_rect(x, y, x0, y0, x1, y1, r):
-    if x < x0 or x > x1 or y < y0 or y > y1:
-        return False
-    cx = min(max(x, x0 + r), x1 - r)
-    cy = min(max(y, y0 + r), y1 - r)
-    return (x - cx) ** 2 + (y - cy) ** 2 <= r * r
+   The cut is a proper matte, not a threshold. The artwork is a bright mark
+   composited on a flat dark tile, so for each pixel:
 
+       pixel = bg*(1-a) + colour*a
 
-def render(size, full_bleed):
-    """full_bleed: solid navy tile. Otherwise a transparent adaptive foreground."""
-    S = size * SS
-    if full_bleed:
-        bg_box = (0.0, 0.0, float(S), float(S))
-        bg_r = S * 0.22
-        mark_scale = 0.62          # lines occupy 62% of the tile
-    else:
-        bg_box = None
-        mark_scale = 0.42          # inside the adaptive-icon safe zone
+   Alpha comes from how far the pixel has travelled from the background, and
+   the colour is then un-mixed back out of it. Thresholding instead would
+   leave a dark fringe everywhere the mark is anti-aliased against the tile —
+   visible as a dirty outline at icon sizes, which is exactly where it would
+   be least forgivable.
 
-    mw = S * mark_scale
-    left = (S - mw) / 2.0
-    # three ledger rules: full, full, two-thirds — same device as the app mark
-    bar_h = mw * 0.135
-    gap = mw * 0.145
-    total_h = bar_h * 3 + gap * 2
-    top = (S - total_h) / 2.0
-    bars = []
-    for i, frac in enumerate((1.0, 1.0, 0.6)):
-        y0 = top + i * (bar_h + gap)
-        bars.append((left, y0, left + mw * frac, y0 + bar_h, bar_h / 2.0))
+Outputs, at all five densities:
+    ic_launcher.png      legacy: the mark on a rounded brand tile
+    ic_launcher_fg.png   adaptive foreground: the mark alone, transparent
+and one 512x512 PNG for the Play Store listing.
 
-    rows = []
-    for py in range(size):
-        row = bytearray()
-        for px in range(size):
-            ra = ga = ba = aa = 0
-            for sy in range(SS):
-                for sx in range(SS):
-                    x = px * SS + sx + 0.5
-                    y = py * SS + sy + 0.5
-                    on_mark = any(in_round_rect(x, y, *b) for b in bars)
-                    if on_mark:
-                        r, g, b, a = WHITE + (255,)
-                    elif bg_box and in_round_rect(x, y, bg_box[0], bg_box[1], bg_box[2], bg_box[3], bg_r):
-                        r, g, b, a = NAVY + (255,)
-                    else:
-                        r = g = b = a = 0
-                    ra += r * a; ga += g * a; ba += b * a; aa += a
-            n = SS * SS
-            if aa == 0:
-                row += bytes((0, 0, 0, 0))
-            else:
-                row += bytes((ra // aa, ga // aa, ba // aa, aa // n))
-        rows.append(row)
-    return rows
+Run it from this directory:  python3 make_icons.py
+"""
+import os
 
+from PIL import Image
 
-BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "res")
+HERE = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.join(HERE, "..", "brand", "split-buddy-logo.png")
+RES = os.path.join(HERE, "res")
+PLAY = os.path.join(HERE, "..", "playstore", "listing")
+
+# Density buckets. Legacy icons are 48dp, adaptive layers 108dp.
 DENS = [("mdpi", 1), ("hdpi", 1.5), ("xhdpi", 2), ("xxhdpi", 3), ("xxxhdpi", 4)]
 
-for name, scale in DENS:
-    legacy = int(round(48 * scale))
-    write_png(os.path.join(BASE, "mipmap-" + name, "ic_launcher.png"), legacy, legacy, render(legacy, True))
-    fg = int(round(108 * scale))
-    write_png(os.path.join(BASE, "mipmap-" + name, "ic_launcher_fg.png"), fg, fg, render(fg, False))
-    print("mipmap-%-8s legacy %3dpx  foreground %3dpx" % (name, legacy, fg))
+# Of the 108dp adaptive canvas, only the middle 66dp is guaranteed to survive
+# every launcher's mask. Anything outside it may be shaved off.
+#
+# The mark is a tall diagonal sliver, so fitting it by bounding box wastes
+# room — its corners are empty. FG_FILL is set from the furthest *ink*, not
+# the furthest pixel of the box, and then backed off ~6% so a circular mask
+# never shaves the tip. Measured, not guessed: see the check at the end.
+SAFE = 66 / 108
+FG_FILL = SAFE * 0.75
+# The legacy icon has no mask to worry about, so the mark can be bigger.
+LEGACY_FILL = 0.68
+CORNER = 0.22            # rounded-tile radius, as a fraction of the size
+
+
+def load_mark():
+    """The mark, cut free of its tile, as a tight RGBA image. Also the tile
+    colour, which becomes the icon background so the brand reads the same."""
+    im = Image.open(SRC).convert("RGB")
+    w, h = im.size
+    bg = im.getpixel((4, 4))
+
+    px = im.load()
+
+    def dist(p):
+        return abs(p[0] - bg[0]) + abs(p[1] - bg[1]) + abs(p[2] - bg[2])
+
+    # The wordmark sits under a clear horizontal gap. Find the gap, keep what
+    # is above it, and never assume a fixed crop — the artwork may change.
+    ink = [any(dist(px[x, y]) > 90 for x in range(0, w, 3)) for y in range(h)]
+    first = ink.index(True)
+    gap = None
+    y = first
+    while y < h:
+        if not ink[y]:
+            run = y
+            while run < h and not ink[run]:
+                run += 1
+            if run - y > 12:            # a real gap, not a gap inside a glyph
+                gap = y
+                break
+            y = run
+        else:
+            y += 1
+    if gap is None:
+        raise SystemExit("could not find the gap between the mark and the text")
+
+    # Widest excursion from the background, used to normalise alpha.
+    top = im.crop((0, 0, w, gap))
+    peak = max(dist(p) for p in top.getdata())
+
+    out = Image.new("RGBA", top.size, (0, 0, 0, 0))
+    op = out.load()
+    tp = top.load()
+    for yy in range(top.size[1]):
+        for xx in range(top.size[0]):
+            p = tp[xx, yy]
+            a = dist(p) / (peak * 0.40)          # fully opaque well before the peak
+            if a <= 0.004:
+                continue
+            a = min(1.0, a)
+            # un-mix: recover the mark's own colour from the composite
+            c = tuple(min(255, max(0, int(round(bg[i] + (p[i] - bg[i]) / a))))
+                      for i in range(3))
+            op[xx, yy] = c + (int(round(a * 255)),)
+
+    return out.crop(out.getbbox()), bg
+
+
+def fit(mark, canvas, fill):
+    """The mark centred on a transparent square, occupying `fill` of it."""
+    w, h = mark.size
+    target = canvas * fill
+    scale = min(target / w, target / h)
+    m = mark.resize((max(1, round(w * scale)), max(1, round(h * scale))),
+                    Image.LANCZOS)
+    out = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+    out.paste(m, ((canvas - m.size[0]) // 2, (canvas - m.size[1]) // 2), m)
+    return out
+
+
+def rounded_tile(size, colour, radius):
+    """A rounded square of `colour`, anti-aliased by drawing big and shrinking."""
+    from PIL import ImageDraw
+    ss = 4
+    big = Image.new("RGBA", (size * ss, size * ss), (0, 0, 0, 0))
+    ImageDraw.Draw(big).rounded_rectangle(
+        [0, 0, size * ss - 1, size * ss - 1], radius=radius * size * ss,
+        fill=colour + (255,))
+    return big.resize((size, size), Image.LANCZOS)
+
+
+def main():
+    mark, bg = load_mark()
+    print("mark cut from the artwork: %dx%d, tile colour #%02X%02X%02X"
+          % (mark.size[0], mark.size[1], *bg))
+
+    for name, scale in DENS:
+        legacy = round(48 * scale)
+        tile = rounded_tile(legacy, bg, CORNER)
+        tile.alpha_composite(fit(mark, legacy, LEGACY_FILL))
+        d = os.path.join(RES, "mipmap-" + name)
+        os.makedirs(d, exist_ok=True)
+        tile.save(os.path.join(d, "ic_launcher.png"))
+
+        fg_size = round(108 * scale)
+        fit(mark, fg_size, FG_FILL).save(os.path.join(d, "ic_launcher_fg.png"))
+        print("mipmap-%-8s legacy %3dpx   foreground %3dpx" % (name, legacy, fg_size))
+
+    os.makedirs(PLAY, exist_ok=True)
+    store = Image.new("RGB", (512, 512), bg)
+    m = fit(mark, 512, 0.62)
+    store.paste(m, (0, 0), m)
+    store.save(os.path.join(PLAY, "icon-512.png"))
+    print("playstore/listing/icon-512.png   512px, no transparency, as Play requires")
+
+    check_safe_zone()
+    print("\nic_launcher_bg in res/values/colors.xml should be "
+          "#FF%02X%02X%02X to match the tile." % bg)
+
+
+def check_safe_zone():
+    """Fail loudly if the mark could be clipped by a circular mask.
+
+    Worth doing every run: it is the one mistake here that nobody notices
+    until the icon is on a home screen with its tip sliced off, and by then
+    it is in an APK somebody has installed.
+    """
+    import math
+    fg = Image.open(os.path.join(RES, "mipmap-xxxhdpi", "ic_launcher_fg.png"))
+    s = fg.size[0]
+    c = s / 2
+    safe = s * SAFE / 2
+    px = fg.load()
+    worst = 0.0
+    for y in range(s):
+        for x in range(s):
+            if px[x, y][3] > 8:
+                worst = max(worst, math.hypot(x - c, y - c))
+    pct = worst / safe * 100
+    print("furthest ink sits at %.0f%% of the safe radius" % pct)
+    if worst > safe:
+        raise SystemExit("the mark would be clipped by a circular mask — "
+                         "lower FG_FILL")
+
+
+if __name__ == "__main__":
+    main()

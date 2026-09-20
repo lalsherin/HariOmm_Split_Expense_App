@@ -69,10 +69,12 @@ the other way round.
 
 ## Launcher icons
 
-`make_icons.py` draws them with nothing but `zlib` and `struct` — a rounded navy
-tile with three ledger rules, 4× supersampled, emitted as RGBA PNGs at five
-densities, plus transparent foregrounds and an `adaptive-icon` XML for API 26+.
-No image library required.
+`make_icons.py` cuts them out of `brand/split-buddy-logo.png` — the supplied
+artwork — at five densities, plus a transparent adaptive foreground, an
+`adaptive-icon` XML for API 26+, and the 512px Play listing icon. See the 3.7
+changelog entry for why the wordmark is dropped and why the mark is matted out
+of its tile rather than cropped with it. The script checks its own output
+against the adaptive safe circle and fails rather than emit a clipped icon.
 
 ## Signing
 
@@ -109,6 +111,46 @@ images come from the same blocked hosts. Everything above is static analysis of
 the package plus dynamic testing of the page it carries.
 
 ## Changelog
+
+### 3.7 (versionCode 21)
+
+**The Split Buddy logo is now the app's icon**, replacing the three-bar glyph
+drawn by the old `make_icons.py`. The supplied artwork is kept as
+`brand/split-buddy-logo.png` and every icon is generated from it, so there is
+one source and no hand-edited PNGs to drift.
+
+Two things had to happen to the artwork, and neither was optional:
+
+- **The wordmark came off.** A launcher icon is 48dp — about 9mm. "SplitBuddy
+  by Hexanxt" at that size is a smudge, and Play rejects icons whose text is
+  illegible. The script finds the gap under the mark and keeps only what is
+  above it, rather than a hard-coded crop, so a new version of the artwork
+  still works.
+- **The mark is cut out of its tile, not cropped with it.** An adaptive icon is
+  the foreground layer alone, masked to whatever shape the launcher wants; a
+  foreground carrying its own dark square would show as a dark square inside
+  the mask. The cut is a proper matte — alpha from the distance the pixel has
+  travelled from the background, then the colour un-mixed back out of it —
+  because thresholding leaves a dark fringe on every anti-aliased edge, which
+  at icon size reads as a dirty outline.
+
+`make_icons.py` now **measures the result and refuses to ship a clipped one**.
+The mark is a tall diagonal sliver, so sizing it by bounding box wastes room;
+it is sized from the furthest actual ink instead, and the script fails the run
+if that exceeds the 66dp safe circle. It currently sits at 93% of it. Checked
+against a rounded-square and a circular mask on the icon extracted from the
+*signed* APK, not on the source files.
+
+`ic_launcher_bg` is now `#FF1C1A2F`, the artwork's own tile colour, so the
+adaptive background matches the legacy icon instead of the old blue.
+
+In the app, the same mark replaces the old glyph in the sidebar header and on
+the welcome screen, inlined as a data URI because the phone build is one file
+with no network (+15 KB). **The passcode screen keeps its padlock** — there the
+glyph says what the screen is for, not who made the app.
+
+Also new: `playstore/listing/icon-512.png`, the 512×512 icon Play requires for
+the store listing, with no transparency.
 
 ### 3.6 (versionCode 20)
 
