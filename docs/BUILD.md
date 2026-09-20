@@ -110,6 +110,68 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 3.6 (versionCode 20)
+
+**The removed group that came back.** Reported with screenshots, and they
+showed something more precise than the description: the group list had the same
+number of rows before and after, with one group gone and a previously removed
+one back in its place. A *swap*. That is the signature of one list replacing
+another rather than being added to.
+
+Root cause, `applyPull()` in `web/split-ledger.html`. The merge of the server's
+hidden list was written as "adopt the server's, keeping anything still pending":
+
+```js
+const next = data.hidden.filter(id => pending.indexOf(id) < 0)
+  .concat(pending.filter(id => mine.indexOf(id) >= 0));
+```
+
+Anything in the local list that the server had not been told about, and that
+was not in the outbox at that moment, was silently dropped. That is **every
+removal made on 3.2, 3.3 or 3.4** — where the list lived only on the phone and
+the server had no idea — and every removal whose push had not landed. The next
+sync wiped it, and the most visible trigger for a sync is removing the next
+group. Hence "remove the second one and the first comes back".
+
+Reproduced first, with a test that seeds exactly that state: the list came back
+as `["<goa-id>"]` with the other id erased, and the group reappeared.
+
+**The fix is that removal is now one-way.** The merge is a union: a sync can
+only ever add to the removed list, never take from it. And anything this phone
+knows about that the server does not is queued to be *sent* — the two converge
+by telling the server rather than by forgetting. Self-healing, so a removal
+made on an older build, or one whose push failed while the host was asleep,
+repairs itself on the next successful sync instead of being undone by it.
+
+**Restore is gone.** Being able to put a group back was what made removal feel
+provisional, and provisional state is what let a sync quietly reverse it. Also
+removed, with no leftovers: `unhideGroup()`, `hiddenGroupsField()`, the Account
+section, the Undo on the toast, and the toast-action mechanism and CSS that
+existed only to carry it.
+
+**Both dialogs now say what they mean**, and they are no longer near-identical:
+
+| | title | button |
+|---|---|---|
+| member | Remove this group? | Remove from my account |
+| creator | Delete this group for everyone? | Delete for everyone |
+
+The member's message says the others keep it, that they are still in the group
+and their share still counts, and that it cannot be undone.
+
+**Being added back clears a removal** (`app/sync/service.py`). Without it,
+permanent removal makes re-adding someone a dead end: a member of a group they
+can never see, with no way out. A *new* member row linking that account to that
+group now deletes their `group_hidden` row.
+
+Tests: `resurrect.mjs` reproduces the exact reported sequence and also removes
+a group while a stand-in host is asleep, then checks it is still gone a minute
+after the host wakes. `removal.mjs` (replacing `admindelete.mjs`) covers five
+groups with three removed and repeated syncs, a new group and an owner deletion
+in between, an app restart, both other members left untouched, and that no
+Restore exists anywhere. Two new backend tests: removal is one-way across
+repeated syncs, and re-adding clears it. **80 backend tests pass.**
+
 ### 3.5 (versionCode 19)
 
 **A central record of who has signed up.** Most of it already existed — this

@@ -425,6 +425,31 @@ async def test_hiding_is_idempotent(phone):
     assert out["hidden"] == [GID]
 
 
+async def test_removing_is_one_way_on_the_server(phone):
+    """Nothing the server sends may take a removal back. Sending the same
+    removal twice, or a later unrelated sync, must leave it in place."""
+    sherin, anu = await _goa_with_anu(phone)
+    await anu.sync(hidden=[{"group_id": GID, "hidden": True}])
+    for _ in range(3):
+        out = await anu.sync()
+        assert out["hidden"] == [GID], "an ordinary sync un-removed it"
+
+
+async def test_being_added_back_clears_the_removal(phone):
+    """Removal is permanent, which would otherwise make re-adding someone a
+    dead end: a member of a group they can never see, with no way out."""
+    sherin, anu = await _goa_with_anu(phone)
+    await anu.sync(hidden=[{"group_id": GID, "hidden": True}])
+    assert (await anu.sync())["hidden"] == [GID]
+
+    # Sherin drops her, then adds her again — a brand-new member row
+    await sherin.sync(members=[member("m-anu", "Anu", "9876500002", deleted=True,
+                                      updated_at="2027-01-01T00:00:00+00:00")])
+    await sherin.sync(members=[member("m-anu-2", "Anu", "9876500002",
+                                      updated_at="2027-01-02T00:00:00+00:00")])
+    assert (await anu.sync())["hidden"] == [], "she still cannot see the group"
+
+
 async def test_you_cannot_hide_someone_elses_group(phone):
     outsider = phone("9876500009", "Nobody")
     await outsider.sign_in()

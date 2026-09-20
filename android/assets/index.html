@@ -441,15 +441,6 @@ input.err { border-color: var(--neg); }
   box-shadow: var(--shadow-md); pointer-events: none;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
-/* A toast carrying an Undo has to be clickable, so it takes pointer events
-   back for as long as it is up. Without .show it stays inert, or an invisible
-   toast would swallow taps on whatever is underneath it. */
-.toast.act { pointer-events: none; max-width: min(92vw, 420px); }
-.toast.act.show { pointer-events: auto; }
-.toast .toast-act {
-  border: 0; background: none; color: var(--page); font: inherit; font-weight: 700;
-  text-decoration: underline; padding: 2px 0 2px 14px; margin-left: 2px; cursor: pointer;
-}
 
 .railbtn { display: none; }
 
@@ -962,26 +953,9 @@ const myId = () => {
 };
 const meMember = () => { const id = myId(); return S.group ? (S.group.members || []).find(m => m.id === id) || null : null; };
 
-/** A short message. Pass `action` — {label, onClick} — to hang an Undo off it,
- *  which also keeps it up longer, because a button nobody has time to read is
- *  worse than no button. */
-function toast(msg, action) {
-  const t = $("#toast");
-  t.innerHTML = "";
-  t.appendChild(document.createTextNode(msg));
-  t.classList.toggle("act", !!action);
-  if (action && action.label) {
-    t.appendChild(el("button", {
-      class: "toast-act", type: "button", text: action.label,
-      onclick: () => {
-        clearTimeout(toast._t); t.classList.remove("show");
-        if (typeof action.onClick === "function") action.onClick();
-      }
-    }));
-  }
-  t.classList.add("show");
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.remove("show"), action ? 7000 : 2200);
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
 /* --- writes --- */
@@ -1195,16 +1169,8 @@ function renderRail() {
   const live = liveGroups();
   $("#groupCount").textContent = live.length ? live.length : "";
   if (!live.length) {
-    // "No groups yet" would be a small lie if they have some, removed from
-    // this phone and sitting in Account waiting to be put back.
-    const away = hiddenGroupIds().filter(id => {
-      const g = S.groups.find(x => x.id === id);
-      return g && !g.deleted;
-    }).length;
-    list.appendChild(el("p", { class: "hint", style: "padding:8px 10px", text: away
-      ? (away === 1 ? "Nothing here. One group is removed from this phone — Account has it."
-                    : "Nothing here. " + away + " groups are removed from this phone — Account has them.")
-      : "No groups yet. Create one to start splitting." }));
+    list.appendChild(el("p", { class: "hint", style: "padding:8px 10px",
+      text: "No groups yet. Create one to start splitting." }));
     return;
   }
   live.forEach(g => {
@@ -1221,9 +1187,9 @@ function renderRail() {
     const admin = iAmAdmin(g);
     row.appendChild(el("button", {
       class: "gdel",
-      title: admin ? "Delete " + g.name : "Remove " + g.name + " from this phone",
+      title: admin ? "Delete " + g.name : "Remove " + g.name + " from my account",
       "aria-label": admin ? "Delete group " + g.name
-                          : "Remove " + g.name + " from this phone",
+                          : "Remove " + g.name + " from my account",
       onclick: (ev) => { ev.stopPropagation(); confirmDeleteGroup(g); }
     }, [iconSvg("M3 4.4h10M6.4 4.4V2.9h3.2v1.5M4.7 4.4l.6 8.3a.9.9 0 0 0 .9.8h3.6a.9.9 0 0 0 .9-.8l.6-8.3")]));
     list.appendChild(row);
@@ -1247,7 +1213,7 @@ function renderRail() {
 function confirmDeleteGroup(g) {
   if (!iAmAdmin(g)) return confirmHideGroup(g);
   confirmModal({
-    title: "Delete this group?",
+    title: "Delete this group for everyone?",
     danger: true,
     confirmLabel: "Delete for everyone",
     message: "<strong>" + esc(g.name) + "</strong> and everything in it — its members, every expense and all recorded payments — will be removed.\n\nThis cannot be undone"
@@ -1258,30 +1224,27 @@ function confirmDeleteGroup(g) {
   });
 }
 
-/** The non-creator's version: it goes from this phone, and only this phone. */
+/** The non-creator's version: it goes from this account, and nowhere else.
+ *
+ *  This is permanent by design. There is no undo and no restore list — being
+ *  able to put a group back was what made the removal feel provisional, and
+ *  provisional state is what let a sync quietly reverse it. */
 function confirmHideGroup(g) {
   confirmModal({
-    title: "Remove from this phone?",
+    title: "Remove this group?",
     danger: true,
-    confirmLabel: "Remove from my phone",
-    message: "<strong>" + esc(g.name) + "</strong> will disappear from this phone.\n\n"
-      + "It stays exactly as it is for everyone else — you are still in the group, "
-      + "and your share of every expense still counts in their balances. "
-      + "Only whoever created the group can delete it for everybody.\n\n"
-      + "You can bring it back from Account.",
+    confirmLabel: "Remove from my account",
+    message: "<strong>" + esc(g.name) + "</strong> will be removed from your account.\n\n"
+      + "Other members will continue to see and use the group. You are still in it, "
+      + "and your share of every expense still counts in their balances — you simply "
+      + "will not see it any more.\n\n"
+      + "This cannot be undone.",
     onConfirm: () => {
       hideGroup(g.id);
       const next = liveGroups()[0];
       if (S.gid === g.id) selectGroup(next ? next.id : null);
       else render();
-      toast("“" + g.name + "” removed from this phone", {
-        label: "Undo",
-        onClick: () => {
-          unhideGroup(g.id);
-          selectGroup(g.id);
-          toast("“" + g.name + "” is back");
-        }
-      });
+      toast("“" + g.name + "” removed from your account");
     }
   });
 }
@@ -2606,7 +2569,7 @@ function prettyPhone(e164) {
    build script so it cannot quietly drift. Shown in the connection check, next
    to the server's own build, because "is the server actually running what I
    pushed?" is otherwise unanswerable from a phone. */
-const APP_VERSION = "3.5";
+const APP_VERSION = "3.6";
 
 function myIdentity() { return LS.get("sl.identity", null); }
 function myPhone() { const i = myIdentity(); return i ? i.mobile : null; }
@@ -2641,10 +2604,6 @@ function isHidden(id) { return hiddenGroupIds().indexOf(id) >= 0; }
 function hideGroup(id) {
   const list = hiddenGroupIds();
   if (list.indexOf(id) < 0) { list.push(id); LS.set("sl.hidden", list); }
-  markHiddenDirty(id);
-}
-function unhideGroup(id) {
-  LS.set("sl.hidden", hiddenGroupIds().filter(x => x !== id));
   markHiddenDirty(id);
 }
 /* Tell the server, so that removing a group from your view survives a
@@ -2950,17 +2909,33 @@ function buildPush() {
 
 function applyPull(data) {
   let changed = false;
-  /* The server keeps each account's own list of groups it has removed from
-     view, and sends it whole. Adopt it — but never lose a change made here
-     that has not been sent yet, so anything still pending is laid back on top.
-     An older server sends no list at all and this does nothing. */
+  /* Groups this account has removed from its own view.
+   *
+   * This merge is a UNION, and that is the whole point. It was previously
+   * written as "adopt the server's list", which meant any group removed here
+   * that the server had not been told about was silently un-removed on the
+   * next sync — every removal made before the server learned to store them,
+   * and every removal whose push had not landed yet. The symptom was a
+   * straight swap: remove one group, and a previously removed one takes its
+   * place in the list. Removing is one-way now, so a sync can only ever add
+   * to this list, never take from it.
+   *
+   * Anything this phone knows about and the server does not is queued to be
+   * sent, so the two converge by telling the server rather than by forgetting.
+   * An older server sends no list at all and this whole block does nothing. */
   if (Array.isArray(data.hidden)) {
-    const pending = (dirtySet().hidden || []);
     const mine = hiddenGroupIds();
-    const next = data.hidden.filter(id => pending.indexOf(id) < 0)
-      .concat(pending.filter(id => mine.indexOf(id) >= 0));
-    const now = next.filter((id, i) => next.indexOf(id) === i);
-    if (now.join("|") !== mine.join("|")) { LS.set("sl.hidden", now); changed = true; }
+    const fromServer = data.hidden.filter(id => mine.indexOf(id) < 0);
+    if (fromServer.length) {
+      LS.set("sl.hidden", mine.concat(fromServer));
+      changed = true;
+    }
+    const unknown = mine.filter(id => data.hidden.indexOf(id) < 0);
+    if (unknown.length) {
+      const d = dirtySet();
+      d.hidden = (d.hidden || []).concat(unknown.filter(id => (d.hidden || []).indexOf(id) < 0));
+      LS.set("sl.dirty", d);
+    }
   }
   (data.groups || []).forEach(row => {
     let g = S.groups.find(x => x.id === row.id);
@@ -3414,38 +3389,6 @@ async function openCheckModal() {
   drawSyncBar();
 }
 
-/** The way back from "remove from my phone".
- *
- *  Hiding a group is meant to be reversible — it takes nothing away from
- *  anyone, so there is no reason to make it final. Groups removed this way are
- *  listed here with a Restore next to each, and the section is simply absent
- *  when there are none. */
-function hiddenGroupsField() {
-  const ids = hiddenGroupIds();
-  const rows = ids.map(id => {
-    const g = S.groups.find(x => x.id === id);
-    // Still hidden but no longer on this phone at all: the creator deleted it
-    // for everyone in the meantime. Nothing to restore, so drop it quietly.
-    if (!g || g.deleted) { unhideGroup(id); return null; }
-    const row = el("div", { class: "memberrow", style: "align-items:center" }, [
-      el("span", { style: "flex:1;min-width:0;overflow-wrap:anywhere", text: g.name }),
-      el("button", {
-        class: "btn btn-sm", type: "button", text: "Restore",
-        onclick: () => { unhideGroup(g.id); closeModal(); selectGroup(g.id); toast("“" + g.name + "” is back"); }
-      })
-    ]);
-    return row;
-  }).filter(Boolean);
-  if (!rows.length) return null;
-  return el("div", { class: "field" }, [
-    el("label", { text: "Removed from this phone" }),
-    el("div", {}, rows),
-    el("div", { class: "hint", text: rows.length === 1
-      ? "This group is still running for everyone else — it is just hidden here."
-      : "These groups are still running for everyone else — they are just hidden here." })
-  ]);
-}
-
 function openAccountModal() {
   const id = myIdentity();
   const urlIn = el("input", { type: "url", inputmode: "url", autocapitalize: "off",
@@ -3481,8 +3424,7 @@ function openAccountModal() {
         onclick: () => { closeModal(); openCheckModal(); }
       }),
       el("div", { class: "hint", text: "Checks the server, this phone's sign-in, and — most usefully — whether everyone in your current group has actually signed in with the number you added. Safe to screenshot." })
-    ]),
-    hiddenGroupsField()
+    ])
   ];
 
   const save = el("button", {

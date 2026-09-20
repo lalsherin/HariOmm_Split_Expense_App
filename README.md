@@ -17,7 +17,8 @@ Three parts:
   can reach your server.
 - **Server** — `backend/`, mobile-number identity and cross-device sync, so a
   group created on one phone appears on everyone else's. Deployed on Render
-  with a Neon database — see [`docs/DEPLOY.md`](docs/DEPLOY.md).
+  with a Neon database — see [`docs/DEPLOY.md`](docs/DEPLOY.md), and
+  [`docs/QUERIES.sql`](docs/QUERIES.sql) for looking inside it.
 
 ---
 

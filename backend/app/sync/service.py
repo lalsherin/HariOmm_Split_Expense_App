@@ -138,6 +138,16 @@ async def push(db: AsyncSession, user: User, changes) -> List[Dict[str, Any]]:
                 name=m.name, role=m.role, joined_at=incoming_at,
                 updated_at=incoming_at, deleted=m.deleted, seq=await next_seq(db),
             ))
+            # Being added to a group is an invitation, and it should not land
+            # in a hole. If this person removed the group from their own view
+            # once and has now been added back, the removal is spent — without
+            # this they would be a member of a group they could never see, with
+            # no way to undo it, because removal is deliberately permanent.
+            if linked and not m.deleted:
+                stale = await db.get(
+                    GroupHidden, {"user_id": linked, "group_id": m.group_id})
+                if stale is not None:
+                    await db.delete(stale)
             continue
         if incoming_at < _aware(existing.updated_at):
             continue

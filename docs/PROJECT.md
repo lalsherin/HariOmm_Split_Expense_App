@@ -5,7 +5,7 @@ this project is, what the pieces are called, how they are joined together, and
 which decisions are already settled and why. Everything else in `docs/` goes
 deeper on one topic; this is the map.
 
-Last updated for **3.5 (versionCode 19)**, 19 September 2026.
+Last updated for **3.6 (versionCode 20)**, 20 September 2026.
 
 ---
 
@@ -137,7 +137,7 @@ backend/          the sync server (FastAPI + SQLAlchemy + Postgres)
   app/sync/service.py     <- push/pull, the rules about who may change what
   app/sync/router.py      <- the /sync endpoint, including long polling
   app/auth/service.py     <- sign-in, refresh-token rotation
-  tests/                  <- 78 tests, runnable on SQLite or real Postgres
+  tests/                  <- 80 tests, runnable on SQLite or real Postgres
 web/split-ledger.html     <- THE APP. ~3,700 lines. Everything the user sees.
 docs/             BUILD.md (changelog + how it is built), DEPLOY.md, INSTALL.txt, this file
 render.yaml       the Render service, described so there is no form to mistype
@@ -176,7 +176,12 @@ Every sign-in — successful or not — is also recorded in `login_history`
 (time, platform, device string, IP, and the outcome). That table is what
 answers "did they even reach the server?".
 
-**To see who has registered**, open the Neon SQL editor and run:
+**To see who has registered**, open the Neon SQL editor and run the query
+below. [`docs/QUERIES.sql`](QUERIES.sql) has this one and nine others worth
+keeping — failed sign-in attempts, which build each person is on, who has
+removed which group, and the one that answers "I added them but it never
+reached their phone". Every query in it has been run against a real Postgres
+with real rows; the handful that write are commented out and marked.
 
 ```sql
 select name, mobile_number, app_version,
@@ -318,11 +323,15 @@ is whoever created it, permanently; no promoting, no transferring. **Enforced
 on the server, not just hidden in the app**, because an older build sends a
 real delete and would otherwise wipe out everyone's records.
 
-**Hidden groups** (`sl.hidden`) are local to one phone and never sent. They
-keep syncing in the background, so restoring one brings it back current. A
-hidden group stays hidden even if new expenses arrive in it — a thing you
-deleted should not resurrect itself. Undo on the toast, or Account → *Removed
-from this phone*.
+**A member's removal is permanent and one-way.** It is kept per account in
+`group_hidden` on the server and in `sl.hidden` on the phone, and the merge
+between them is a **union** — a sync can only ever add to it. That is not a
+detail: writing it the other way round, with the server's list authoritative,
+meant any removal the server had not been told about was silently undone on the
+next sync, and a group you removed came back the moment you removed another
+one. There is no Restore, deliberately: reversible state is what let a sync
+reverse it. The one thing that clears a removal is the owner **adding you back**
+— otherwise being re-added would put you in a group you could never see.
 
 **Instant updates are long polling, not push.** The phone asks the server to
 hold a request open for up to 15 seconds; the server watches one counter and
