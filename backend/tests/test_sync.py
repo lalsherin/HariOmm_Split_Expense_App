@@ -455,3 +455,24 @@ async def test_you_cannot_hide_someone_elses_group(phone):
     await outsider.sign_in()
     out = await outsider.sync(hidden=[{"group_id": "g-not-mine", "hidden": True}])
     assert out["rejected"] == [{"kind": "hidden", "id": "g-not-mine", "reason": "not_a_member"}]
+
+
+async def test_a_removal_sent_after_being_taken_out_is_refused_every_time(phone):
+    """The contract behind the 3.8 fix for the endless "1 change refused" toast.
+
+    Anu removes the group from her own view, but by the time that reaches the
+    server Sherin has already taken her out of it. The server cannot record a
+    removal for someone who is not in the group, so it refuses — and it will
+    refuse again, identically, however often the phone asks. Its own list
+    never gains the group either. So the refusal is final, and the phone must
+    stop sending it; before 3.8 it re-queued it on every sync and showed the
+    refusal each time."""
+    sherin, anu = await _goa_with_anu(phone)
+    await sherin.sync(members=[member("m-anu", "Anu", "9876500002", deleted=True,
+                                      updated_at="2027-01-01T00:00:00+00:00")])
+    for _ in range(3):
+        out = await anu.sync(hidden=[{"group_id": GID, "hidden": True}])
+        assert out["rejected"] == [{"kind": "hidden", "id": GID, "reason": "not_a_member"}]
+        assert out["hidden"] == [], "the server stored it after all"
+    # and a sync with nothing to send has nothing to complain about
+    assert (await anu.sync())["rejected"] == []

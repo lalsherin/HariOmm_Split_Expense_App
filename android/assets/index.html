@@ -2578,7 +2578,7 @@ function prettyPhone(e164) {
    build script so it cannot quietly drift. Shown in the connection check, next
    to the server's own build, because "is the server actually running what I
    pushed?" is otherwise unanswerable from a phone. */
-const APP_VERSION = "3.7";
+const APP_VERSION = "3.8";
 
 function myIdentity() { return LS.get("sl.identity", null); }
 function myPhone() { const i = myIdentity(); return i ? i.mobile : null; }
@@ -2629,9 +2629,23 @@ function markHiddenDirty(id) {
   cancelHold();
   scheduleSync(600);
 }
-/** Every group this phone should be showing: not deleted, not hidden here. */
+/** Every group this phone should be showing: not deleted, not hidden here,
+ *  and not one the server has told us this account is no longer in. */
 function liveGroups() {
-  return S.groups.filter(g => !g.deleted && !isHidden(g.id));
+  return S.groups.filter(g => !g.deleted && !g.revoked && !isHidden(g.id));
+}
+
+/* Removals the server declined to record, because by the time the removal
+   reached it this account was no longer in the group (the creator deleted
+   the group or took you out of it first).
+
+   The removal still stands on this phone — it simply cannot be stored for an
+   account that is not in the group. It must not be re-sent: the server will
+   refuse it every time, and each refusal used to put "1 change refused" on
+   screen, over and over, for as long as the app stayed open. */
+function hiddenRefusedIds() {
+  const v = LS.get("sl.hiddenRefused", []);
+  return Array.isArray(v) ? v : [];
 }
 
 /* ---------- per-viewer contact names ---------- */
@@ -2866,7 +2880,7 @@ async function doRefresh() {
 }
 
 /** Groups that are allowed to leave this phone. The built-in sample never is. */
-function syncableGroups() { return S.groups.filter(g => !g.sample && !g.localOnly); }
+function syncableGroups() { return S.groups.filter(g => !g.sample && !g.localOnly && !g.revoked); }
 
 function buildPush() {
   const d = dirtySet();
@@ -2939,7 +2953,10 @@ function applyPull(data) {
       LS.set("sl.hidden", mine.concat(fromServer));
       changed = true;
     }
-    const unknown = mine.filter(id => data.hidden.indexOf(id) < 0);
+    // ...except the ones it has already refused. Asking again gets the same
+    // answer, and each answer used to be an error on screen.
+    const refused = hiddenRefusedIds();
+    const unknown = mine.filter(id => data.hidden.indexOf(id) < 0 && refused.indexOf(id) < 0);
     if (unknown.length) {
       const d = dirtySet();
       d.hidden = (d.hidden || []).concat(unknown.filter(id => (d.hidden || []).indexOf(id) < 0));
@@ -2957,6 +2974,19 @@ function applyPull(data) {
     // Delete button on this phone deletes for everyone or only here.
     if (row.created_by) g.ownerId = row.created_by;
     g.deleted = !!row.deleted; g.updatedAt = row.updated_at;
+    // The server only sends groups this account is in, so a row arriving
+    // means we are in it (again). Anything that said otherwise is spent.
+    g.revoked = false;
+    /* A removal the server refused because we had been taken out of the
+       group, and now the group is back: the owner has added us again. The
+       server's own rule is that being added back cancels a removal — without
+       it you would be in a group you could never see — so the same applies
+       here. */
+    const refused = hiddenRefusedIds();
+    if (refused.indexOf(row.id) >= 0) {
+      LS.set("sl.hiddenRefused", refused.filter(id => id !== row.id));
+      LS.set("sl.hidden", hiddenGroupIds().filter(id => id !== row.id));
+    }
     changed = true;
   });
   (data.members || []).forEach(row => {
@@ -3013,6 +3043,67 @@ function clearPushed(push) {
   return d.groups.length + d.expenses.length + d.settlements.length + d.hidden.length;
 }
 
+/** Make sense of what the server refused, fix up this phone so the same thing
+ *  is never sent again, and return the one message worth showing (or null).
+ *
+ *  A refusal is an answer, not a transient error — sending the same row again
+ *  gets the same refusal. So each kind is settled here, once:
+ *
+ *    not_a_member     This account is no longer in that group: the creator
+ *                     deleted it or took us out. The group is set aside on this
+ *                     phone (`revoked`) so nothing more is written into it and
+ *                     it stops being offered. If the group was already removed
+ *                     from this phone, that is all — nothing to tell anyone.
+ *    not_the_creator  We tried to delete, for everyone, a group someone else
+ *                     created. The server kept it, so pull it back in full.
+ *
+ *  Must run BEFORE applyPull, which would otherwise queue a refused removal
+ *  straight back up to be sent again. */
+function handleRejected(rejected, push) {
+  const result = { changed: false, message: null };
+  if (!rejected || !rejected.length) return result;
+  const groupOf = r => {
+    if (r.kind === "group" || r.kind === "hidden") return r.id;
+    const list = { member: push.members, expense: push.expenses, settlement: push.settlements }[r.kind] || [];
+    const row = list.find(x => x.id === r.id);
+    return row ? row.group_id : null;
+  };
+  const lost = new Set(), notOwner = new Set(), refusedHide = [];
+  let other = 0;
+  rejected.forEach(r => {
+    const gid = groupOf(r);
+    if (r.kind === "hidden") refusedHide.push(r.id);
+    if (r.reason === "not_a_member" && gid) lost.add(gid);
+    else if (r.reason === "not_the_creator" && gid) notOwner.add(gid);
+    else if (r.kind !== "hidden") other++;
+  });
+
+  if (refusedHide.length) {
+    const had = hiddenRefusedIds();
+    LS.set("sl.hiddenRefused", had.concat(refusedHide.filter(id => had.indexOf(id) < 0)));
+  }
+
+  const named = [];
+  lost.forEach(gid => {
+    const g = S.groups.find(x => x.id === gid);
+    if (!g || g.revoked) return;
+    // Seen by the person only if it was still on their screen.
+    if (!g.deleted && !isHidden(gid)) named.push(g.name || "that group");
+    g.revoked = true;
+    result.changed = true;
+  });
+
+  if (notOwner.size) SYNC.fullPull = true;      // put back what we tombstoned
+  const ownerNames = [];
+  notOwner.forEach(gid => { const g = S.groups.find(x => x.id === gid); if (g) ownerNames.push(g.name); });
+
+  if (named.length === 1) result.message = "You're no longer in “" + named[0] + "” — it has been removed from this phone";
+  else if (named.length > 1) result.message = "You're no longer in " + named.length + " groups — they have been removed from this phone";
+  else if (ownerNames.length) result.message = "Only the person who created “" + ownerNames[0] + "” can delete it for everyone";
+  else if (other) result.message = other + " change" + (other === 1 ? " wasn't" : "s weren't") + " accepted by the server";
+  return result;
+}
+
 async function syncNow(manual) {
   if (!SYNC_ENABLED) return false;
   unwedge();
@@ -3064,14 +3155,13 @@ async function syncNow(manual) {
     SYNC.ctl = null;
     SYNC.fullPull = false;
     SYNC.fails = 0;
-    const changed = applyPull(data);
+    const refusal = handleRejected(data.rejected, push);
+    const changed = applyPull(data) || refusal.changed;
     LS.set("sl.syncSeq", data.seq || syncSeq());
     const stillDirty = clearPushed(push);
     if (stillDirty) scheduleSync(800);       // edits made during the request
     localSave();
-    if (data.rejected && data.rejected.length) {
-      toast(data.rejected.length + " change" + (data.rejected.length === 1 ? "" : "s") + " refused — you're not in that group");
-    }
+    if (refusal.message) toast(refusal.message);
     setSyncState("ok");
     if (changed) {
       const current = liveGroups().find(g => g.id === S.gid);

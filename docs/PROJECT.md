@@ -5,7 +5,7 @@ this project is, what the pieces are called, how they are joined together, and
 which decisions are already settled and why. Everything else in `docs/` goes
 deeper on one topic; this is the map.
 
-Last updated for **3.7 (versionCode 21)**, 20 September 2026.
+Last updated for **3.8 (versionCode 22)**, 25 September 2026.
 
 ---
 
@@ -138,8 +138,9 @@ backend/          the sync server (FastAPI + SQLAlchemy + Postgres)
   app/sync/service.py     <- push/pull, the rules about who may change what
   app/sync/router.py      <- the /sync endpoint, including long polling
   app/auth/service.py     <- sign-in, refresh-token rotation
-  tests/                  <- 80 tests, runnable on SQLite or real Postgres
+  tests/                  <- 81 tests, runnable on SQLite or real Postgres
 brand/split-buddy-logo.png  the supplied logo — every icon is generated from it
+e2e/             two-phone end-to-end checks against a real local server (./run.sh)
 web/split-ledger.html     <- THE APP. ~3,700 lines. Everything the user sees.
 docs/             BUILD.md (changelog + how it is built), DEPLOY.md, INSTALL.txt, this file
 render.yaml       the Render service, described so there is no form to mistype
@@ -205,13 +206,18 @@ automatically; being dormant is not a reason to be locked out.
 
 ## 6. Versions
 
-Current: **3.3 / versionCode 17.**
+Current: **3.8 / versionCode 22.**
 
 `versionCode` must go **up** every release or Play refuses the upload and
 Android refuses the update.
 
 | | What it was about |
 |---|---|
+| 3.8 | Fixed the "1 change refused" toast repeating forever after being taken out of a group |
+| 3.7 | The Split Buddy logo is the app icon |
+| 3.6 | Fixed a removed group coming back when another was removed |
+| 3.5 | A central record of who has signed up (users, login_history) |
+| 3.4 | Two sync defects fixed (see BUILD.md) |
 | 3.3 | Connection check; fixed Save falsely reporting "Couldn't reach that server" |
 | 3.2 | Only the group's creator can delete it for everyone |
 | 3.1 | Instant updates — a group reaches the other phone in about a second |
@@ -252,7 +258,7 @@ Android refuses the update.
 
 Needs: `openjdk-21-jdk-headless`, `nodejs`, `android-sdk-build-tools`, `aapt`,
 `apksigner`, `zipalign`, `android-sdk-platform-23`, plus two jars that are
-**not** in the repo — `apktool.jar` (only for the smali assembler inside it)
+**not** in the repo — `apktool.jar` (**2.9.x**; only for the smali assembler inside it — 2.10+ changed the API `Dexer.java` calls)
 and `bundletool.jar` (Play bundle only) — and the signing keystore.
 
 ```
@@ -395,7 +401,10 @@ Not bugs that bite at this size, but they are real:
 
 ## 14. Tests
 
-- **Backend:** `cd backend && python3 -m pytest` — 58 tests.
+- **Backend:** `cd backend && python3 -m pytest` — 81 tests.
+- **Refused changes, end to end:** `cd e2e && ./run.sh` — nine scenarios, two
+  phones, a real local server; added in 3.8 for the repeating "change refused"
+  toast.
 - **The app:** Playwright scripts drive two "phones" against a real server —
   group delivery, delete permissions, sign-out recovery, the connection check,
   layout down to a 280px screen at 175% text, and the latency of an update

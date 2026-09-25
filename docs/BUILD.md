@@ -112,6 +112,57 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 3.8 (versionCode 22)
+
+**"1 change refused — you're not in that group", on and off, forever.**
+Reported with screenshots: an empty group list and that toast coming back
+every few seconds for as long as the app was open.
+
+What was happening. Removing a group from your own view is sent to the server
+so it survives a reinstall. If, by the time that removal arrived, the group's
+creator had already taken you out of the group — or deleted it and you with
+it — the server cannot record a removal for someone who is not a member, and
+refuses it. Correctly. But the phone reconciles its own list of removals
+against the server's on every sync, and anything the server does not have is
+queued to be sent again. So: send, refused, toast, re-queue, wait out the
+15-second long poll, send, refused, toast — indefinitely. Nothing was lost;
+the phone simply could not stop asking.
+
+A refusal is an answer, not a transient error, so the fix is to settle each
+kind once instead of retrying it:
+
+- **A removal the server refuses** is remembered on the phone
+  (`sl.hiddenRefused`) and never re-sent. It still applies on this phone. It is
+  silent — the group was already gone from the screen, so there is nothing to
+  tell. If the owner later **adds you back**, the removal is cleared and the
+  group reappears, which is the server's own rule for re-adds.
+- **Any other change refused because you are no longer in the group** (you
+  were taken out and edited the group before your phone found out) sets that
+  group aside on this phone (`revoked`), says so once — *You're no longer in
+  "Goa trip" — it has been removed from this phone* — and nothing more is sent
+  into it. A group row arriving from the server later undoes it.
+- **A delete refused because you did not create the group** now says exactly
+  that, and triggers a full re-sync so the group comes back instead of sitting
+  half-deleted on this phone until the next launch.
+- The old catch-all text blamed membership for every refusal. Anything not
+  covered above now reads *N changes weren't accepted by the server*.
+
+No server behaviour changed — only `SERVER_BUILD`, kept in step by
+`check_version.py`. Phones already caught in the loop stop after the update's
+first sync, with no toast.
+
+Verified: a new backend test pins the contract the phone relies on (the
+refusal repeats identically and the server never stores it; 81 tests pass).
+End to end, two phones against a real server, nine scenarios each watched for
+two full long-poll cycles — the two orders in which the reported bug happens,
+a phone already stuck under 3.7 being upgraded, being removed and then
+editing, being added back after a refused removal, a non-creator's delete,
+and the ordinary delete and remove flows as regression checks. The same
+harness against the 3.7 page reproduces the repeating toast.
+
+Build note: `Dexer.java` needs **apktool 2.9.x** — 2.10 and later changed the
+`SmaliBuilder.build` signature and the build fails at the smali step.
+
 ### 3.7 (versionCode 21)
 
 **The Split Buddy logo is now the app's icon**, replacing the three-bar glyph
