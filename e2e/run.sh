@@ -8,6 +8,7 @@
 #   ./run.sh nav                 # bottom navigation bar                (~2 minutes)
 #   ./run.sh invites             # share group / invite links           (~2 minutes)
 #   ./run.sh addexp              # Home's Add expense asks for the group (~1 minute)
+#   ./run.sh cards               # share expense / balance as an image  (~2 minutes)
 #   ./run.sh refused 35 removed_then_hides,stuck_37_phone_upgrades
 #
 # Builds the phone page from web/split-ledger.html first, so it tests what the
@@ -40,6 +41,9 @@ if [ "$WHICH" = all ] || [ "$WHICH" = nav ]; then
 fi
 if [ "$WHICH" = all ] || [ "$WHICH" = contacts ]; then
   python3 test_contact_picker.py "$@" || STATUS=1
+fi
+if [ "$WHICH" = all ] || [ "$WHICH" = cards ]; then
+  python3 test_share_cards.py "$@" || STATUS=1
 fi
 if [ "$WHICH" = all ] || [ "$WHICH" = refused ]; then
   python3 test_refused_changes.py "$@" || STATUS=1

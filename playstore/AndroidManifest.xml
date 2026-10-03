@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.sherinlal.splitledger"
-    android:versionCode="28"
-    android:versionName="3.14">
+    android:versionCode="29"
+    android:versionName="3.15">
 
     <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="36" />
 
@@ -56,5 +56,14 @@
                 <data android:scheme="splitbuddy" android:host="join" />
             </intent-filter>
         </activity>
+
+        <!-- Hands the generated share card (cache/share/split-buddy-card.png)
+             to the app the user picks, as a content:// URI with a one-off read
+             grant. Not exported: nothing else can open it on its own. -->
+        <provider
+            android:name="com.sherinlal.splitledger.ShareProvider"
+            android:authorities="com.sherinlal.splitledger.share"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

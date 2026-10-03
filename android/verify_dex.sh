@@ -30,4 +30,14 @@ javap -c -p -cp "$T/app.jar" $(unzip -Z1 "$T/app.jar" | grep '\.class$' | sed 's
   | sed -E 's#// (InterfaceMethod|Method) #Method #; s#// Field #Field #' \
   | sed -E 's#^(Method|Field) ([^.]+)\.("?[^:"]+"?):(.*)$#\1 \2 \3 \4#; s#"##g' | sort -u \
   | java -cp "$T" RefCheck "$ANDROID_JAR"
+# 3. Run the share-card native code (ShareProvider, MainActivity.shareImage)
+#    against small stand-ins for the Android classes it uses, and check the
+#    file it writes, the provider's answers and the share intent it builds.
+mkdir "$T/stubs"
+javac -d "$T/stubs" $(find verify/stubs -name '*.java')
+javac -cp "$T/stubs:$T/app.jar" -d "$T" verify/NativeShareTest.java
+# the stand-ins replace android.jar here, so the class-loading checks that
+# would reject them are off; step 1 above already verified the real code
+java -XX:+UnlockDiagnosticVMOptions -XX:-BytecodeVerificationRemote \
+  -cp "$T:$T/stubs:$T/app.jar" NativeShareTest
 rm -rf "$T"

@@ -112,6 +112,77 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 3.15 (versionCode 29)
+
+**Share an expense, a balance or a group summary as an image.** Tap Share →
+a Split Buddy card is drawn → preview (Cancel / Share) → Android's share sheet
+with the PNG attached (WhatsApp, Gmail, Telegram, Messages, Drive…). The
+picture carries everything; there is no link of any kind on it or in the
+caption, and the person receiving it needs nothing installed.
+
+Where Share is:
+- **an expense** — open a saved expense (Bills, or a group's list) → **Share**.
+  A new, unsaved expense has no Share; an expense being edited shares what is
+  saved, never the unsaved typing;
+- **Balances** — the Settle up card's **Share** → *Group summary*, or one
+  member, whose card is addressed to them.
+
+The cards (1080 px wide, at least 1350 tall, taller when the content needs it):
+- **Expense:** group, title, amount, paid by (a *Paid* list when several paid),
+  date and category, every person's actual share (equal or not), and who owes
+  whom for that expense;
+- **Balance:** one member. One transfer reads **YOU OWE SHERIN** (red) or
+  **YOU ARE OWED BY RAHUL** (green); several give the total and a *Details*
+  list; none reads **YOU'RE ALL SETTLED**. Only transfers that involve that
+  member appear. It follows the Balances screen's Simplified / Exact setting;
+- **Group summary:** total spent, everyone's Gets / Owes / Settled, and the
+  transfers to settle up.
+
+How it is built — three layers, so later cards (a settlement receipt, a
+monthly report) only need a new builder:
+- **builders** (`expenseCard`, `memberBalanceCard`, `groupSummaryCard`) read the
+  app's data and call the existing money functions — `payersOf`, the stored
+  splits, `pairwiseDebts`, `simplifyDebts`, `netBalances`, `fmt`. They compute
+  no money of their own and write nothing;
+- **renderer** (`drawShareCard`): one layout for every card on a `<canvas>`,
+  measured first and then drawn, so long titles and names wrap (an over-long
+  word breaks by characters) and many people make the card taller. The logo is
+  the app's own mark, taken from the page — not redrawn. Currency is the
+  group's;
+- **output** (`openCardPreview` → `shareCardImage`): the PNG goes to the native
+  side as base64 through `AndroidBridge.shareImage(base64, caption)`.
+
+Native side:
+- `MainActivity.shareImage` decodes it into **one** file,
+  `cache/share/split-buddy-card.png`, overwritten each time — cache, so Android
+  may clear it, and never one file per share — and starts `ACTION_SEND`
+  (`image/png`, `EXTRA_STREAM`, the caption as `EXTRA_TEXT`) inside a chooser,
+  with `FLAG_GRANT_READ_URI_PERMISSION` and the URI in `ClipData` so the grant
+  survives the chooser;
+- new **`ShareProvider`** (`content://com.sherinlal.splitledger.share/…`): our
+  own minimal ContentProvider, because there is no androidx here for
+  FileProvider. It serves exactly that one file name, read-only, and refuses
+  every other path (including `../`), insert, update and delete. It is
+  `exported="false"` with `grantUriPermissions="true"`: only the app the user
+  picks gets read access, to that one URI, temporarily. No `file://` anywhere.
+- Failures are messages, not crashes: "Couldn't create the card.",
+  "Couldn't prepare the image for sharing.", "Couldn't open sharing on this
+  phone."
+
+Tests:
+- `e2e/test_share_cards.py` (`./run.sh cards`), 10 scenarios through the real
+  buttons with a stand-in bridge. Each PNG is decoded and checked for size and
+  background, its words read back with tesseract OCR (group, names, amounts,
+  wording; nothing like a link), every drawn line checked to stay inside the
+  card, and the app's data, pending changes and sync pushes compared before
+  and after;
+- `android/verify/NativeShareTest.java`, run by `verify_dex.sh`: the real
+  ShareProvider and `shareImage`, converted from the built dex, against
+  stand-in Android classes (`verify/stubs/`) — 27 checks.
+
+Not checked: a real phone. The share sheet, WhatsApp and Gmail receiving the
+image have not been tried on a device.
+
 ### 3.14 (versionCode 28)
 
 **Colours aligned with HexaNxt.** This is a theme change only: the Split Buddy

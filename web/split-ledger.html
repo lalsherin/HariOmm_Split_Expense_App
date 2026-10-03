@@ -655,6 +655,8 @@ input.err { border-color: var(--neg); }
 .quick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .quick .btn { justify-content: center; padding: 12px; }
 .btn-dashed { border-style: dashed; border-color: var(--accent-line); color: var(--accent); background: none; }
+.cardprev { display: flex; justify-content: center; }
+.cardimg { display: block; width: 100%; max-width: 420px; height: auto; border-radius: 14px; border: 1px solid var(--border); }
 .switchgrp { border: 0; background: none; color: var(--accent); font-size: 13px; font-weight: 600; padding: 0; }
 .backbtn { flex: none; }
 
@@ -1840,6 +1842,8 @@ function renderBalances(v) {
   seg.appendChild(el("button", { "aria-pressed": S.simplify ? "true" : "false", text: "Simplified", onclick: () => { S.simplify = true; render(); } }));
   seg.appendChild(el("button", { "aria-pressed": !S.simplify ? "true" : "false", text: "Exact debts", onclick: () => { S.simplify = false; render(); } }));
   hd.appendChild(seg);
+  hd.appendChild(el("button", { class: "btn btn-sm", type: "button", title: "Share balances as an image", onclick: openBalanceShareMenu },
+    [iconSvg("M8 10V2.5M5 5.2L8 2.3l3 2.9M3.5 8.5v4.3c0 .4.3.7.7.7h7.6c.4 0 .7-.3.7-.7V8.5"), document.createTextNode("Share")]));
   settleCard.appendChild(hd);
 
   const raw = pairwiseDebts(members, exps, setts);
@@ -2548,11 +2552,12 @@ async function copyText(text) {
 }
 function shareOut(subject, text) {
   const b = window.AndroidBridge;
+  SHARE_FAIL_MSG = "Couldn't open sharing — use Copy link instead.";
   if (b && typeof b.shareText === "function") { try { b.shareText(subject, text); return; } catch (e) { } }
   if (navigator.share) { navigator.share({ title: subject, text: text }).catch(() => {}); return; }
   copyText(text).then(ok => toast(ok ? "Invite copied — paste it into any app" : "Copy the link and send it"));
 }
-window.__shareFailed = function () { toast("Couldn't open sharing — use Copy link instead."); };
+window.__shareFailed = function () { toast(SHARE_FAIL_MSG); };
 
 /** A link for this group: the one this phone made earlier if it still has a
  *  day left, otherwise a new one from the server. */
@@ -2618,6 +2623,366 @@ function openShareModal(g) {
   }));
   openModal("Share group", body, [el("button", { class: "btn", type: "button", text: "Close", onclick: closeModal }), copyBtn, shareBtn]);
   inviteLinkFor(g, false).then(show, fail);
+}
+
+/* ==========================================================
+   Share cards — an expense, a balance or a group summary as an image
+   ==========================================================
+ *
+ * Tap Share → a Split Buddy card is drawn → preview → Share → Android's own
+ * share sheet (WhatsApp, Gmail, Telegram, Messages…) with the PNG attached.
+ * The recipient needs nothing: the picture carries all the information. No
+ * links, no URLs.
+ *
+ * Three layers, kept apart so new cards (settlement receipt, monthly report,
+ * PDF…) only need a new builder:
+ *
+ *   builders   expenseCard / memberBalanceCard / groupSummaryCard
+ *              READ the app's data and call the existing money functions
+ *              (payersOf, stored splits, pairwiseDebts, netBalances,
+ *              simplifyDebts, fmt). They never compute money themselves and
+ *              never write anything.
+ *   renderer   drawShareCard(model) → <canvas>: one layout for every card.
+ *   output     openCardPreview → shareCardImage → AndroidBridge.shareImage
+ *              (a PNG in the app's private cache, shared as content://).
+ */
+const CARD_W = 1080, CARD_MIN_H = 1350, CARD_MAX_H = 16000;
+const CARD_C = { bg: "#090717", panel: "#12101f", panel2: "#17142a", line: "#272247", ink: "#f3f1ff",
+  ink2: "#b9b5d0", muted: "#8f8aab", accent: "#9a85ff", teal: "#2dd4bf", pos: "#3ecf7a", neg: "#ff6f61", tile: "#1C1A2F" };
+const CARD_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif';
+
+/* ---- builders: data in, card model out ---- */
+function cardMemberName(id, g) { return memberName(id, g); }
+function cardDate(iso) { const d = dateParts(iso); return parseInt(d.d, 10) + " " + d.m + " " + d.y; }
+
+function expenseCard(g, e) {
+  const cur = g.currency;
+  const pay = payersOf(e);
+  const payerIds = Object.keys(pay).filter(id => pay[id] > 0);
+  const name = id => cardMemberName(id, g);
+  const order = (g.members || []).map(m => m.id);
+  const byOrder = (a, b) => (order.indexOf(a) + 1 || 1e9) - (order.indexOf(b) + 1 || 1e9);
+  const splitIds = Object.keys(e.splits || {}).filter(id => e.splits[id] > 0).sort(byOrder);
+  // who owes whom for this one expense: the app's own pairwise rule, given just this expense
+  const debts = pairwiseDebts((g.members || []).filter(m => splitIds.indexOf(m.id) >= 0 || pay[m.id]), [e], []);
+  const sections = [];
+  if (payerIds.length > 1) sections.push({ heading: "Paid", rows: payerIds.sort(byOrder).map(id => ({ label: name(id), value: fmt(pay[id], cur) })) });
+  sections.push({ heading: "Split", rows: splitIds.map(id => ({ label: name(id), value: fmt(e.splits[id], cur) })) });
+  return {
+    kind: "expense", group: g.name, kicker: "Expense", title: e.description || "Expense",
+    amount: fmt(e.amount, cur), amountTone: "ink",
+    amountNote: "Paid by " + payerIds.map(name).join(", "),
+    meta: cardDate(e.date) + (e.category ? "  ·  " + e.category : ""),
+    sections: sections,
+    callout: debts.length
+      ? { rows: debts.map(d => ({ label: name(d.from) + " owes " + name(d.to), value: fmt(d.amount, cur), tone: "neg" })) }
+      : { rows: [{ label: "Nothing owed — paid by the person it was for", value: "", tone: "muted" }] },
+    caption: g.name + " – " + (e.description || "Expense") + " | " +
+      (debts.length === 1 ? name(debts[0].from) + " owes " + name(debts[0].to) + " " + fmt(debts[0].amount, cur)
+                          : fmt(e.amount, cur) + " paid by " + payerIds.map(name).join(", "))
+  };
+}
+
+/** Transfers exactly as the Balances screen shows them (Simplified or Exact). */
+function cardTransfers(g) {
+  const members = liveMembers(g), exps = currentExpenses(), setts = currentSettlements();
+  const net = netBalances(members, exps, setts);
+  return { net: net, list: S.simplify ? simplifyDebts(net) : pairwiseDebts(members, exps, setts) };
+}
+
+/** One member's position, addressed to them ("YOU OWE SHERIN"). Only the
+ *  transfers that involve that member appear — nobody else's business. */
+function memberBalanceCard(g, mid) {
+  const cur = g.currency, name = id => cardMemberName(id, g), up = t => t.toLocaleUpperCase();
+  const { net, list } = cardTransfers(g);
+  const mine = list.filter(t => t.from === mid || t.to === mid);
+  const m = {
+    kind: "balance", group: g.name, kicker: "Your balance", person: name(mid), sections: [],
+    footnote: "Based on current group expenses and payments · " + cardDate(todayStr())
+  };
+  if (!mine.length) {
+    Object.assign(m, { amount: fmt(0, cur), amountTone: "muted", amountNote: "YOU'RE ALL SETTLED",
+      caption: g.name + " | " + name(mid) + " is all settled" });
+  } else if (mine.length === 1) {
+    const t = mine[0], owes = t.from === mid;
+    Object.assign(m, { amount: fmt(t.amount, cur), amountTone: owes ? "neg" : "pos",
+      amountNote: owes ? "YOU OWE " + up(name(t.to)) : "YOU ARE OWED BY " + up(name(t.from)),
+      caption: g.name + " | " + (owes ? name(mid) + " owes " + name(t.to) : name(t.from) + " owes " + name(mid)) + " " + fmt(t.amount, cur) });
+  } else {
+    const total = net[mid] || 0;
+    Object.assign(m, { amount: fmt(Math.abs(total), cur), amountTone: total < 0 ? "neg" : total > 0 ? "pos" : "muted",
+      amountNote: total < 0 ? "YOU OWE IN TOTAL" : total > 0 ? "YOU ARE OWED IN TOTAL" : "YOU'RE EVEN OVERALL",
+      caption: g.name + " | " + name(mid) + "'s balance: " + fmt(Math.abs(total), cur) + (total < 0 ? " to pay" : " to receive") });
+    m.sections.push({ heading: "Details", rows: mine.map(t => t.from === mid
+      ? { label: "You owe " + name(t.to), value: fmt(t.amount, cur), tone: "neg" }
+      : { label: name(t.from) + " owes you", value: fmt(t.amount, cur), tone: "pos" }) });
+  }
+  return m;
+}
+
+function groupSummaryCard(g) {
+  const cur = g.currency, name = id => cardMemberName(id, g);
+  const { net, list } = cardTransfers(g);
+  const exps = currentExpenses();
+  const total = exps.reduce((a, e) => a + e.amount, 0);
+  const ids = liveMembers(g).map(m => m.id);
+  const rank = id => net[id] > 0 ? 0 : net[id] < 0 ? 1 : 2;
+  ids.sort((a, b) => rank(a) - rank(b) || Math.abs(net[b]) - Math.abs(net[a]));
+  const sections = [{ heading: "Balances", rows: ids.map(id => net[id] > 0
+    ? { label: name(id), value: "Gets " + fmt(net[id], cur), tone: "pos" }
+    : net[id] < 0 ? { label: name(id), value: "Owes " + fmt(-net[id], cur), tone: "neg" }
+    : { label: name(id), value: "Settled", tone: "muted" }) }];
+  if (list.length) sections.push({ heading: "To settle up", rows: list.map(t => ({ label: name(t.from) + " pays " + name(t.to), value: fmt(t.amount, cur) })) });
+  return {
+    kind: "summary", group: g.name, kicker: "Group summary", amount: fmt(total, cur), amountTone: "ink",
+    amountNote: "spent across " + exps.length + (exps.length === 1 ? " expense" : " expenses"),
+    sections: sections,
+    callout: list.length ? null : { rows: [{ label: "Everyone is settled up", value: "", tone: "pos" }] },
+    footnote: "Current group balances · " + cardDate(todayStr()),
+    caption: g.name + " – current balances"
+  };
+}
+
+/* ---- renderer: one layout for every card ---- */
+let cardLogo = null;
+function loadCardLogo() {
+  if (cardLogo) return cardLogo;
+  cardLogo = new Promise(resolve => {
+    try {
+      // The app's own mark, exactly as the drawer shows it — never redrawn.
+      const bg = getComputedStyle(document.querySelector(".brand .mark")).backgroundImage || "";
+      const m = bg.match(/url\(["']?(data:[^"')]+)["']?\)/);
+      if (!m) return resolve(null);
+      const img = new Image();
+      img.onload = () => resolve(img); img.onerror = () => resolve(null);
+      img.src = m[1];
+    } catch (e) { resolve(null); }
+  });
+  return cardLogo;
+}
+function cardWrap(ctx, text, maxW) {
+  const out = [];
+  String(text || "").split(/\n/).forEach(par => {
+    let line = "";
+    par.split(/\s+/).filter(Boolean).forEach(word => {
+      const tryLine = line ? line + " " + word : word;
+      if (ctx.measureText(tryLine).width <= maxW) { line = tryLine; return; }
+      if (line) out.push(line);
+      // a single word wider than the line is broken by characters
+      line = "";
+      for (const ch of word) {
+        if (ctx.measureText(line + ch).width > maxW && line) { out.push(line); line = ch; } else line += ch;
+      }
+    });
+    out.push(line);
+  });
+  return out.length ? out : [""];
+}
+function cardRound(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function cardTone(t) { return { pos: CARD_C.pos, neg: CARD_C.neg, muted: CARD_C.muted, accent: CARD_C.accent }[t] || CARD_C.ink; }
+
+/** Lays the card out; draws it too when `draw`. Returns the height used. */
+function layoutCard(ctx, model, logo, draw) {
+  const M = 48, P = 64, X = M + P, W = CARD_W - 2 * (M + P), R = X + W;
+  const font = (wt, px) => { ctx.font = wt + " " + px + "px " + CARD_FONT; };
+  const text = (str, x, y, color, align) => { if (!draw) return; ctx.fillStyle = color; ctx.textAlign = align || "left"; ctx.fillText(str, x, y); };
+  const spaced = (px) => { try { ctx.letterSpacing = px + "px"; } catch (e) { } };
+  let y = M + P;
+
+  // header: the Split Buddy mark on its own tile, and the name
+  const T = 76;
+  if (draw) {
+    ctx.fillStyle = CARD_C.tile; cardRound(ctx, X, y, T, T, 18); ctx.fill();
+    if (logo) { const h = T * 0.68, w = h * logo.width / logo.height; ctx.drawImage(logo, X + (T - w) / 2, y + (T - h) / 2, w, h); }
+  }
+  font("700", 40); text("Split Buddy", X + T + 22, y + 52, CARD_C.ink);
+  font("600", 24); spaced(3);
+  const kick = String(model.kicker || "").toLocaleUpperCase();
+  const kw = ctx.measureText(kick).width + 40;
+  if (draw) { ctx.fillStyle = "rgba(154,133,255,.14)"; cardRound(ctx, R - kw, y + 18, kw, 44, 22); ctx.fill(); }
+  text(kick, R - kw / 2, y + 48, CARD_C.accent, "center");
+  spaced(0);
+  y += T + 52;
+
+  // group
+  font("500", 34);
+  cardWrap(ctx, model.group, W).forEach(l => { text(l, X, y + 30, CARD_C.ink2); y += 44; });
+  y += 10;
+
+  // whose card (balance)
+  if (model.person) {
+    font("700", 60);
+    cardWrap(ctx, model.person, W).forEach(l => { text(l, X, y + 54, CARD_C.ink); y += 70; });
+    y += 12;
+  }
+  // title (expense)
+  if (model.title) {
+    font("700", 64);
+    cardWrap(ctx, model.title, W).forEach(l => { text(l, X, y + 58, CARD_C.ink); y += 76; });
+    y += 14;
+  }
+  // the amount
+  if (model.amount) {
+    let px = 120; font("800", px);
+    while (ctx.measureText(model.amount).width > W && px > 56) { px -= 6; font("800", px); }
+    text(model.amount, X, y + px * 0.86, cardTone(model.amountTone));
+    y += px + 18;
+  }
+  if (model.amountNote) {
+    const loud = model.amountNote === model.amountNote.toLocaleUpperCase();
+    font(loud ? "700" : "500", loud ? 36 : 34); if (loud) spaced(2);
+    cardWrap(ctx, model.amountNote, W).forEach(l => { text(l, X, y + 32, loud ? cardTone(model.amountTone) : CARD_C.ink2); y += 46; });
+    spaced(0);
+  }
+  if (model.meta) { font("500", 28); cardWrap(ctx, model.meta, W).forEach(l => { text(l, X, y + 28, CARD_C.muted); y += 40; }); }
+  y += 26;
+
+  // sections: label on the left (wraps, never under the amount), value right
+  const rowFont = 34, lh = 44;
+  (model.sections || []).forEach(sec => {
+    if (draw) { ctx.fillStyle = CARD_C.line; ctx.fillRect(X, y, W, 2); }
+    y += 40;
+    font("700", 24); spaced(3); text(String(sec.heading).toLocaleUpperCase(), X, y + 20, CARD_C.muted); spaced(0);
+    y += 44;
+    sec.rows.forEach(row => {
+      font("700", rowFont);
+      const vw = row.value ? ctx.measureText(row.value).width : 0;
+      font("500", rowFont);
+      const lines = cardWrap(ctx, row.label, Math.max(240, W - vw - 40));
+      lines.forEach((l, i) => text(l, X, y + 34 + i * lh, CARD_C.ink));
+      font("700", rowFont); text(row.value || "", R, y + 34, cardTone(row.tone), "right");
+      y += lines.length * lh + 20;
+    });
+    y += 10;
+  });
+
+  // the statement that matters most, in its own box
+  if (model.callout && model.callout.rows.length) {
+    y += 12;
+    const rows = model.callout.rows.map(row => {
+      font("800", 40); const vw = row.value ? ctx.measureText(row.value).width : 0;
+      font("600", 36);
+      return { row: row, vw: vw, lines: cardWrap(ctx, row.label, Math.max(260, W - 64 - vw - 32)) };
+    });
+    const h = rows.reduce((a, r) => a + r.lines.length * 48 + 22, 0) + 52;
+    if (draw) {
+      ctx.fillStyle = CARD_C.panel2; cardRound(ctx, X, y, W, h, 28); ctx.fill();
+      ctx.strokeStyle = CARD_C.line; ctx.lineWidth = 2; cardRound(ctx, X, y, W, h, 28); ctx.stroke();
+    }
+    let yy = y + 30;
+    rows.forEach(r => {
+      font("600", 36); r.lines.forEach((l, i) => text(l, X + 32, yy + 36 + i * 48, CARD_C.ink));
+      font("800", 40); text(r.row.value || "", R - 32, yy + 38, cardTone(r.row.tone), "right");
+      yy += r.lines.length * 48 + 22;
+    });
+    y += h + 24;
+  }
+  if (model.footnote) { font("500", 26); cardWrap(ctx, model.footnote, W).forEach(l => { text(l, X, y + 28, CARD_C.muted); y += 38; }); y += 8; }
+
+  // footer
+  y += 30;
+  if (draw) { ctx.fillStyle = CARD_C.line; ctx.fillRect(X, y, W, 2); }
+  y += 44;
+  const t2 = 44;
+  if (draw) {
+    ctx.fillStyle = CARD_C.tile; cardRound(ctx, X, y, t2, t2, 11); ctx.fill();
+    if (logo) { const h = t2 * 0.68, w = h * logo.width / logo.height; ctx.drawImage(logo, X + (t2 - w) / 2, y + (t2 - h) / 2, w, h); }
+  }
+  font("700", 30); text("Split Buddy", X + t2 + 16, y + 32, CARD_C.ink);
+  font("500", 24); text("Shared expenses, settled fairly", R, y + 30, CARD_C.muted, "right");
+  y += t2 + P + M;
+  return y;
+}
+
+async function drawShareCard(model) {
+  const logo = await loadCardLogo();
+  const probe = document.createElement("canvas").getContext("2d");
+  const need = layoutCard(probe, model, logo, false);
+  const H = Math.min(CARD_MAX_H, Math.max(CARD_MIN_H, Math.ceil(need)));
+  const c = document.createElement("canvas");
+  c.width = CARD_W; c.height = H;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = CARD_C.bg; ctx.fillRect(0, 0, CARD_W, H);
+  const glow = ctx.createRadialGradient(CARD_W / 2, -120, 40, CARD_W / 2, -120, 900);
+  glow.addColorStop(0, "rgba(124,92,255,.22)"); glow.addColorStop(1, "rgba(124,92,255,0)");
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, CARD_W, H);
+  ctx.fillStyle = CARD_C.panel; cardRound(ctx, 48, 48, CARD_W - 96, H - 96, 48); ctx.fill();
+  ctx.strokeStyle = CARD_C.line; ctx.lineWidth = 2; cardRound(ctx, 48, 48, CARD_W - 96, H - 96, 48); ctx.stroke();
+  // short content is centred in the minimum height; long content sets the height
+  const off = Math.max(0, (H - need) / 2);
+  ctx.save(); ctx.translate(0, off);
+  layoutCard(ctx, model, logo, true);
+  ctx.restore();
+  window.__lastCard = { model: model, width: c.width, height: c.height };
+  return c;
+}
+
+/* ---- output: preview, then the share sheet ---- */
+let SHARE_FAIL_MSG = "Couldn't open sharing on this phone.";
+async function openCardPreview(build) {
+  let model;
+  try { model = build(); } catch (e) { toast("Couldn't create the card."); return; }
+  if (!model) { toast("Nothing to share yet."); return; }
+  const holder = el("div", { class: "cardprev" }, [el("p", { class: "hint", text: "Preparing card…" })]);
+  const share = el("button", { class: "btn btn-primary", type: "button", disabled: "disabled" },
+    [iconSvg("M8 10V2.5M5 5.2L8 2.3l3 2.9M3.5 8.5v4.3c0 .4.3.7.7.7h7.6c.4 0 .7-.3.7-.7V8.5"), document.createTextNode("Share")]);
+  openModal("Share card", [holder], [el("button", { class: "btn", type: "button", text: "Cancel", onclick: closeModal }), share]);
+  await new Promise(r => setTimeout(r, 30));          // let the dialog paint first
+  let canvas;
+  try { canvas = await drawShareCard(model); }
+  catch (e) { holder.innerHTML = ""; holder.appendChild(el("p", { class: "hint", text: "Couldn't create the card." })); return; }
+  const url = canvas.toDataURL("image/png");
+  holder.innerHTML = "";
+  holder.appendChild(el("img", { src: url, alt: "Share card preview", class: "cardimg" }));
+  share.removeAttribute("disabled");
+  share.addEventListener("click", () => shareCardImage(canvas, url, model.caption || ""));
+}
+
+function shareCardImage(canvas, dataUrl, caption) {
+  const b = window.AndroidBridge;
+  if (b && typeof b.shareImage === "function") {
+    SHARE_FAIL_MSG = "Couldn't open sharing on this phone.";
+    let r = "error";
+    try { r = String(b.shareImage(dataUrl.slice(dataUrl.indexOf(",") + 1), caption)); } catch (e) { r = "error"; }
+    if (r !== "ok") toast("Couldn't prepare the image for sharing.");
+    return;
+  }
+  // a browser: the Web Share API with a file where there is one, else a download
+  canvas.toBlob(blob => {
+    try {
+      const file = new File([blob], "split-buddy-card.png", { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], text: caption }).catch(() => {});
+        return;
+      }
+    } catch (e) { }
+    const a = el("a", { href: dataUrl, download: "split-buddy-card.png" });
+    document.body.appendChild(a); a.click(); a.remove();
+  }, "image/png");
+}
+
+/** Balances → Share: the whole group, or one member's position. */
+function openBalanceShareMenu() {
+  const g = S.group;
+  if (!g) return;
+  const { net } = cardTransfers(g);
+  const rows = el("div", { class: "gcards" });
+  const opt = (title, sub, run, ico) => el("button", { class: "gcard pickgrp", type: "button", onclick: () => { closeModal(); run(); } }, [
+    el("span", { class: "gico", "aria-hidden": "true", text: ico }),
+    el("span", { class: "gi" }, [el("div", { class: "gn", text: title }), el("div", { class: "gs", text: sub })])
+  ]);
+  rows.appendChild(opt("Group summary", "Everyone's current balance", () => openCardPreview(() => groupSummaryCard(g)), "Σ"));
+  liveMembers(g).forEach(m => {
+    const v = net[m.id] || 0;
+    rows.appendChild(opt(displayNameFor(m), v > 0 ? "is owed " + fmt(v, g.currency) : v < 0 ? "owes " + fmt(-v, g.currency) : "settled",
+      () => openCardPreview(() => memberBalanceCard(g, m.id)), initials(displayNameFor(m))));
+  });
+  openModal("Share balances", [el("p", { class: "hint", style: "margin:0", text: "Send a card as an image — the person you send it to doesn't need Split Buddy." }), rows],
+    [el("button", { class: "btn", text: "Cancel", onclick: closeModal })]);
 }
 
 /* ---------- receiving an invite ---------- */
@@ -3328,6 +3693,11 @@ function openExpenseModal(existing) {
         });
       }
     }) : null,
+    // the saved expense, as everyone else sees it — not unsaved edits
+    !isNew ? el("button", { class: "btn", type: "button", title: "Share as an image", onclick: () => {
+      const saved = S.expenses.find(x => x.id === existing.id && !x.deleted) || existing;
+      closeModal(); openCardPreview(() => expenseCard(g, saved));
+    } }, [iconSvg("M8 10V2.5M5 5.2L8 2.3l3 2.9M3.5 8.5v4.3c0 .4.3.7.7.7h7.6c.4 0 .7-.3.7-.7V8.5"), document.createTextNode("Share")]) : null,
     el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
     save
   ];
@@ -3441,7 +3811,7 @@ function prettyPhone(e164) {
    build script so it cannot quietly drift. Shown in the connection check, next
    to the server's own build, because "is the server actually running what I
    pushed?" is otherwise unanswerable from a phone. */
-const APP_VERSION = "3.14";
+const APP_VERSION = "3.15";
 
 function myIdentity() { return LS.get("sl.identity", null); }
 function myPhone() { const i = myIdentity(); return i ? i.mobile : null; }

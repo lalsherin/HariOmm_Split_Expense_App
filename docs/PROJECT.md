@@ -5,7 +5,7 @@ this project is, what the pieces are called, how they are joined together, and
 which decisions are already settled and why. Everything else in `docs/` goes
 deeper on one topic; this is the map.
 
-Last updated for **3.14 (versionCode 28)**, 3 October 2026.
+Last updated for **3.15 (versionCode 29)**, 3 October 2026.
 
 ---
 
@@ -134,7 +134,9 @@ android/          the phone build
   build_asset.js          <- turns web/split-ledger.html into the APK's page
   smali/…/MainActivity.smali   <- the hand-written Activity (WebView + contact picker)
   smali/…/Contacts.smali       <- reads the address book for the multi-select picker
-  verify_dex.sh           <- optional build guard: JVM-verifies the dex against android.jar
+  smali/…/ShareProvider.smali  <- hands a share card's PNG to the chosen app (content://)
+  verify_dex.sh           <- optional build guard: JVM-verifies the dex against android.jar,
+                             then runs verify/NativeShareTest on the share-card native code
   Dexer.java              <- calls apktool's smali assembler
   lint_registers.py       <- build guard (see below)
   check_version.py        <- build guard (see below)
@@ -215,13 +217,14 @@ automatically; being dormant is not a reason to be locked out.
 
 ## 6. Versions
 
-Current: **3.14 / versionCode 28.**
+Current: **3.15 / versionCode 29.**
 
 `versionCode` must go **up** every release or Play refuses the upload and
 Android refuses the update.
 
 | | What it was about |
 |---|---|
+| 3.15 | Share an expense, a balance or a group summary as an image card (Android share sheet) |
 | 3.14 | HexaNxt-aligned colours (deep navy, violet, teal); no layout or logic change |
 | 3.13 | Home: sync row moved to the drawer only; Add expense asks which group; Back-history fix |
 | 3.12 | Share group: invite links via the Android share sheet, Join flow |
@@ -368,6 +371,17 @@ that person. For you and your friends that is a fair trade. The moment a
 stranger can reach the URL it is not. Turning it on needs an SMS provider and,
 for Indian numbers, DLT registration — a regulatory step, not a code change.
 
+**Share cards are pictures, drawn on the phone, with no link in them.** The
+person receiving one needs nothing — not the app, not an account. The card is
+drawn by the page on a canvas from the same functions the screens use
+(`payersOf`, `pairwiseDebts`, `simplifyDebts`, `netBalances`, `fmt`) and never
+writes anything. The native side writes it to **one** file,
+`cache/share/split-buddy-card.png`, overwritten each time, and offers it as
+`content://com.sherinlal.splitledger.share/split-buddy-card.png` with a one-off
+read grant. The provider is our own (`ShareProvider`), not androidx's
+FileProvider, because this project has no Gradle and no androidx; it serves
+that one name and nothing else, read-only, and is not exported.
+
 **The creator is in the group from the start**, listed first, and cannot remove
 themselves — that is what deleting the group is for, and the balances would
 have nowhere to land.
@@ -420,6 +434,14 @@ Not bugs that bite at this size, but they are real:
 - **Refused changes, end to end:** `cd e2e && ./run.sh` — nine scenarios, two
   phones, a real local server; added in 3.8 for the repeating "change refused"
   toast.
+- **Share cards, end to end:** `cd e2e && ./run.sh cards` — expense (equal,
+  unequal, two payers, odd paise), balance (you owe / you are owed / total /
+  settled, Simplified and Exact), group summary, 25 people with long names,
+  USD/EUR/GBP, preview/Cancel/Back, native failures; each PNG is decoded and
+  read back with OCR, and the app's data is compared before and after. Added in 3.15.
+- **Share-card native code:** `android/verify_dex.sh` runs the real
+  ShareProvider and `shareImage` (from the built dex) against stand-in Android
+  classes: file written, provider answers, share intent, refusals. Added in 3.15.
 - **Add expense from Home, end to end:** `cd e2e && ./run.sh addexp`. Added in 3.13.
 - **Invites, end to end:** `cd e2e && ./run.sh invites` — Share, the share
   message, join from a new install, repeat/owner/expired/revoked/deleted/invalid

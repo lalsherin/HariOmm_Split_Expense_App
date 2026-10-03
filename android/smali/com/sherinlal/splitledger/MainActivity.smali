@@ -6,7 +6,8 @@
 # The whole app: one Activity hosting a WebView that loads assets/index.html.
 #
 # Native capabilities exposed to the page (AndroidBridge): the contact picker
-# (pickContact, askContacts/contacts), Android's share sheet (shareText), and
+# (pickContact, askContacts/contacts), Android's share sheet (shareText for
+# invite text, shareImage for share cards via ShareProvider), and
 # the invite link the app was opened with (pendingLink). The single-contact
 # picker, the original one, fires Android's own picker as a separate activity.
 #
@@ -82,7 +83,7 @@
 
     # the page's only route to native code; @JavascriptInterface gates it to
     # the annotated methods below (pickContact, askContacts, contacts,
-    # shareText, pendingLink)
+    # shareText, shareImage, pendingLink)
     const-string v1, "AndroidBridge"
 
     invoke-virtual {v0, p0, v1}, Landroid/webkit/WebView;->addJavascriptInterface(Ljava/lang/Object;Ljava/lang/String;)V
@@ -253,6 +254,156 @@
 .end method
 
 
+# ------------------------------------------------------------ share cards
+#
+# The page draws a card (an expense, a balance, a group summary) and hands it
+# over as base64 PNG. It is written to the app's private cache — one file,
+# overwritten each time, never kept — and shared as
+# content://com.sherinlal.splitledger.share/split-buddy-card.png through
+# ShareProvider, with read permission granted only to the app the person
+# picks. Returns "ok" once the file is written, "error" if it could not be.
+.method public shareImage(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+    .registers 9
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    const/4 v0, 0x0
+
+    invoke-static {p1, v0}, Landroid/util/Base64;->decode(Ljava/lang/String;I)[B
+    move-result-object v0
+
+    invoke-virtual {p0}, Lcom/sherinlal/splitledger/MainActivity;->getCacheDir()Ljava/io/File;
+    move-result-object v2
+
+    new-instance v1, Ljava/io/File;
+
+    const-string v3, "share"
+
+    invoke-direct {v1, v2, v3}, Ljava/io/File;-><init>(Ljava/io/File;Ljava/lang/String;)V
+
+    invoke-virtual {v1}, Ljava/io/File;->mkdirs()Z
+
+    new-instance v2, Ljava/io/File;
+
+    const-string v3, "split-buddy-card.png"
+
+    invoke-direct {v2, v1, v3}, Ljava/io/File;-><init>(Ljava/io/File;Ljava/lang/String;)V
+
+    new-instance v3, Ljava/io/FileOutputStream;
+
+    invoke-direct {v3, v2}, Ljava/io/FileOutputStream;-><init>(Ljava/io/File;)V
+
+    invoke-virtual {v3, v0}, Ljava/io/FileOutputStream;->write([B)V
+
+    invoke-virtual {v3}, Ljava/io/FileOutputStream;->close()V
+    :try_end_0
+    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
+
+    iput-object p2, p0, Lcom/sherinlal/splitledger/MainActivity;->shareBody:Ljava/lang/String;
+
+    const/4 v0, 0x3
+
+    iput v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
+
+    invoke-virtual {p0, p0}, Lcom/sherinlal/splitledger/MainActivity;->runOnUiThread(Ljava/lang/Runnable;)V
+
+    const-string v0, "ok"
+
+    return-object v0
+
+    :catch_0
+    move-exception v0
+
+    const-string v0, "error"
+
+    return-object v0
+.end method
+
+
+# On the UI thread: ACTION_SEND image/png with the content:// URI, the
+# caption as EXTRA_TEXT (an extra; the image alone carries everything), and a
+# one-off read grant for whichever app receives it.
+.method private doShareImage()V
+    .registers 7
+
+    :try_start_0
+    const-string v0, "content://com.sherinlal.splitledger.share/split-buddy-card.png"
+
+    invoke-static {v0}, Landroid/net/Uri;->parse(Ljava/lang/String;)Landroid/net/Uri;
+    move-result-object v0
+
+    new-instance v1, Landroid/content/Intent;
+
+    const-string v2, "android.intent.action.SEND"
+
+    invoke-direct {v1, v2}, Landroid/content/Intent;-><init>(Ljava/lang/String;)V
+
+    const-string v2, "image/png"
+
+    invoke-virtual {v1, v2}, Landroid/content/Intent;->setType(Ljava/lang/String;)Landroid/content/Intent;
+
+    const-string v2, "android.intent.extra.STREAM"
+
+    invoke-virtual {v1, v2, v0}, Landroid/content/Intent;->putExtra(Ljava/lang/String;Landroid/os/Parcelable;)Landroid/content/Intent;
+
+    iget-object v2, p0, Lcom/sherinlal/splitledger/MainActivity;->shareBody:Ljava/lang/String;
+
+    if-eqz v2, :no_caption
+
+    invoke-virtual {v2}, Ljava/lang/String;->length()I
+    move-result v3
+
+    if-eqz v3, :no_caption
+
+    const-string v3, "android.intent.extra.TEXT"
+
+    invoke-virtual {v1, v3, v2}, Landroid/content/Intent;->putExtra(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;
+
+    :no_caption
+    # FLAG_GRANT_READ_URI_PERMISSION, carried through the chooser by ClipData
+    const/4 v2, 0x1
+
+    invoke-virtual {v1, v2}, Landroid/content/Intent;->addFlags(I)Landroid/content/Intent;
+
+    const-string v2, "Split Buddy"
+
+    invoke-static {v2, v0}, Landroid/content/ClipData;->newRawUri(Ljava/lang/CharSequence;Landroid/net/Uri;)Landroid/content/ClipData;
+    move-result-object v2
+
+    invoke-virtual {v1, v2}, Landroid/content/Intent;->setClipData(Landroid/content/ClipData;)V
+
+    const-string v2, "Share card"
+
+    invoke-static {v1, v2}, Landroid/content/Intent;->createChooser(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;
+    move-result-object v3
+
+    const/4 v2, 0x1
+
+    invoke-virtual {v3, v2}, Landroid/content/Intent;->addFlags(I)Landroid/content/Intent;
+
+    invoke-virtual {p0, v3}, Lcom/sherinlal/splitledger/MainActivity;->startActivity(Landroid/content/Intent;)V
+    :try_end_0
+    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
+
+    return-void
+
+    :catch_0
+    move-exception v0
+
+    iget-object v1, p0, Lcom/sherinlal/splitledger/MainActivity;->w:Landroid/webkit/WebView;
+
+    if-eqz v1, :done
+
+    const-string v2, "javascript:if(window.__shareFailed)window.__shareFailed()"
+
+    invoke-virtual {v1, v2}, Landroid/webkit/WebView;->loadUrl(Ljava/lang/String;)V
+
+    :done
+    return-void
+.end method
+
+
 # ------------------------------------------------------------- invite links
 #
 # The link the app was opened with, once: the page reads it on start-up and
@@ -362,6 +513,22 @@
     # The app would not start at all. Locals must stay below the parameters.
     .registers 5
 
+    # mode 3: share the card image the page just wrote (no permission needed)
+    iget v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
+
+    const/4 v1, 0x3
+
+    if-ne v0, v1, :cond_not_image
+
+    const/4 v0, 0x0
+
+    iput v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
+
+    invoke-direct {p0}, Lcom/sherinlal/splitledger/MainActivity;->doShareImage()V
+
+    return-void
+
+    :cond_not_image
     # mode 2 is a share request, which needs no permission at all
     iget v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
 
