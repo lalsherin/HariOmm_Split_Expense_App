@@ -6,6 +6,8 @@
 #   ./run.sh late                # late-install checks only            (~4 minutes)
 #   ./run.sh contacts            # multi-select contact picker          (~2 minutes)
 #   ./run.sh nav                 # bottom navigation bar                (~2 minutes)
+#   ./run.sh invites             # share group / invite links           (~2 minutes)
+#   ./run.sh addexp              # Home's Add expense asks for the group (~1 minute)
 #   ./run.sh refused 35 removed_then_hides,stuck_37_phone_upgrades
 #
 # Builds the phone page from web/split-ledger.html first, so it tests what the
@@ -26,6 +28,12 @@ WHICH=${1:-all}; [ $# -gt 0 ] && shift
 STATUS=0
 if [ "$WHICH" = all ] || [ "$WHICH" = late ]; then
   python3 test_late_install.py "$@" || STATUS=1
+fi
+if [ "$WHICH" = all ] || [ "$WHICH" = addexp ]; then
+  python3 test_add_expense_group.py "$@" || STATUS=1
+fi
+if [ "$WHICH" = all ] || [ "$WHICH" = invites ]; then
+  python3 test_invites.py "$@" || STATUS=1
 fi
 if [ "$WHICH" = all ] || [ "$WHICH" = nav ]; then
   python3 test_navigation.py "$@" || STATUS=1

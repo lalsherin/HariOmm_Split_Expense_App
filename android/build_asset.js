@@ -75,17 +75,30 @@ rep("backupbtn",
    first tap when the drawer was open behind it). */
 rep("closeModal",
   `function closeModal() { $("#modalRoot").innerHTML = ""; document.removeEventListener("keydown", escClose); }`,
-  `var backStack = [], pendingPops = 0;
+  `var backStack = [], pendingPops = 0, queuedBacks = 0;
 function pushBack(key, closeFn) {
   backStack.push({ key: key, close: closeFn });
   try { history.pushState({ sl: key }, ""); } catch (e) { }
+}
+/* Entries released in one go (leaving a group AND its tab; closing one dialog
+   and opening the next) are unwound in ONE traversal at the end of the task.
+   Two history.back() calls in a row are not two steps: the browser runs one
+   traversal at a time and drops the second, so pendingPops would be left one
+   too high (swallowing the person's next real Back) and the history one entry
+   too deep — and the next release walked off the page altogether. history.go(-n)
+   is a single traversal and fires a single popstate. */
+function flushBacks() {
+  var n = queuedBacks; queuedBacks = 0;
+  if (n <= 0) return;
+  pendingPops++;
+  try { history.go(-n); } catch (e) { pendingPops--; }
 }
 function releaseBack(key) {
   for (var i = backStack.length - 1; i >= 0; i--) {
     if (backStack[i].key !== key) continue;
     var wasTop = (i === backStack.length - 1);
     backStack.splice(i, 1);
-    if (wasTop) { pendingPops++; try { history.back(); } catch (e) { pendingPops--; } }
+    if (wasTop) { if (++queuedBacks === 1) Promise.resolve().then(flushBacks); }
     return;
   }
 }

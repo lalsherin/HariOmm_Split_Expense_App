@@ -112,6 +112,25 @@ class Settings:
         self.rl_sync_per_user: int = _int("RL_SYNC_PER_USER", 600)
         self.rl_sync_per_user_window: int = _int("RL_SYNC_PER_USER_WINDOW", 3600)
 
+        # Group invite links. A link stays usable for this many days, unless
+        # the group's owner makes a new one (which revokes the old) or the
+        # group is deleted.
+        self.invite_days: int = _int("INVITE_DAYS", 14)
+        self.rl_invite_per_user: int = _int("RL_INVITE_PER_USER", 60)
+        self.rl_invite_per_user_window: int = _int("RL_INVITE_PER_USER_WINDOW", 3600)
+        # What the /join page and Android App Links need to know about the app.
+        # The fingerprint is the SHA-256 of the certificate the APK is signed
+        # with (split-ledger.jks) — public by nature, it is printed by
+        # `apksigner verify --print-certs`.
+        self.android_package: str = os.getenv("ANDROID_PACKAGE", "com.sherinlal.splitledger")
+        self.android_cert_sha256: str = os.getenv(
+            "ANDROID_CERT_SHA256",
+            "A6:C3:30:2C:11:CB:C4:55:27:F1:C2:E5:03:DC:72:50:"
+            "60:49:BC:A6:29:C7:58:68:4F:B4:F2:AB:74:96:C7:DE")
+        # Where someone without the app can get it. Empty: the page says to ask
+        # whoever sent the link (the APK is shared directly, not from a store).
+        self.app_download_url: str = os.getenv("APP_DOWNLOAD_URL", "")
+
         self.cors_origins: str = os.getenv("CORS_ORIGINS", "*")
         self.log_level: str = os.getenv("LOG_LEVEL", "INFO")
 

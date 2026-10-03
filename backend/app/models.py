@@ -161,6 +161,26 @@ class GroupHidden(Base):
     hidden_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
+class GroupInvite(Base):
+    """A shareable link that lets someone join a group.
+
+    The link carries a random token (128 bits) that has nothing to do with the
+    group's id; only its SHA-256 is stored here, the same way session tokens
+    are, so this table cannot be used to forge a link. An invite stops working
+    when it expires, when it is revoked (the owner makes a new link), or when
+    the group is deleted. Accepting one adds an ordinary group_members row —
+    there is no second kind of membership.
+    """
+    __tablename__ = "group_invites"
+    id = Column(String(36), primary_key=True, default=new_id)
+    group_id = Column(String(64), ForeignKey("groups.id"), nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    created_by = Column(String(36), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+
+
 class Expense(Base):
     __tablename__ = "expenses"
     id = Column(String(64), primary_key=True)

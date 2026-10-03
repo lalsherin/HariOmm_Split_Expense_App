@@ -602,8 +602,6 @@ input.err { border-color: var(--neg); }
 
 /* home and groups list */
 .home { display: flex; flex-direction: column; gap: 18px; }
-.home-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
-.home-status .btn { margin-left: auto; }
 .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .tile {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
@@ -621,6 +619,8 @@ input.err { border-color: var(--neg); }
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm); min-width: 0;
 }
+.gcard.pickgrp { width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.gcard.pickgrp:hover { border-color: var(--accent-line); }
 .gcard .open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; border: 0; background: none; padding: 0; text-align: left; color: inherit; }
 .gcard .gico {
   width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center;
@@ -694,6 +694,8 @@ input.err { border-color: var(--neg); }
   .settle-row .mono { margin-left: auto; }
   .card-hd { gap: 8px; }
   .modal { width: 100%; }
+  /* the open group's header: Share becomes an icon, like the settings gear */
+  .wide-only { display: none; }
   .bnav button { font-size: 10.5px; }
   .bnav .ico { width: 40px; }
   .tile .v { font-size: 16px; }
@@ -1448,23 +1450,9 @@ function groupCard(g, f) {
   return card;
 }
 
-function syncLine() {
-  const map = {
-    ok: ["ok", "Synced"], busy: ["busy", "Syncing…"], offline: ["off", "Offline — saved here"],
-    err: ["err", SYNC.error || "Sync problem"], local: ["off", "This phone only"], off: ["off", "Not signed in"]
-  };
-  const [cls, label] = map[SYNC.state] || map.off;
-  const row = el("div", { class: "home-status", id: "homeStatus" });
-  row.appendChild(el("span", { class: "syncdot " + cls }));
-  row.appendChild(el("span", { text: label }));
-  row.appendChild(el("button", { class: "btn btn-sm btn-ghost", type: "button", text: "Account", onclick: openAccountModal }));
-  return row;
-}
-
 function renderHome(v) {
   const groups = liveGroups();
   const home = el("div", { class: "home" });
-  if (SYNC_ENABLED) home.appendChild(syncLine());
   if (!groups.length) { home.appendChild(emptyNoGroup()); v.appendChild(home); return; }
 
   const figs = groups.map(g => [g, groupFigures(g)]);
@@ -1498,21 +1486,63 @@ function renderHome(v) {
     [iconSvg("M8 3v10M3 8h10"), document.createTextNode("Create group")]));
   quick.appendChild(el("button", {
     class: "btn btn-primary", type: "button",
-    title: S.group ? "Add an expense to " + S.group.name : "",
-    onclick: () => { if (!S.group) selectGroup(groups[0].id); openExpenseModal(null); }
+    onclick: () => chooseGroupFor("Add expense", gid => { selectGroup(gid); openExpenseModal(null); })
   }, [iconSvg("M8 3v10M3 8h10"), document.createTextNode("Add expense")]));
   home.appendChild(quick);
-  if (S.group) home.appendChild(el("div", { class: "hint", style: "margin-top:-10px;text-align:right",
-    text: "Adds to " + S.group.name + " — or tap + on any group." }));
+  home.appendChild(el("div", { class: "hint", style: "margin-top:-10px;text-align:right",
+    text: "You'll pick the group next — or tap + on a group." }));
   v.appendChild(home);
+}
+
+/** "Which group?" — for actions started from somewhere that has no group of
+ *  its own (Home's Add expense). Nothing is pre-selected: the last group used
+ *  is deliberately not offered as a default. Lists exactly what the drawer and
+ *  Groups list show (liveGroups: no deleted groups, none removed from your
+ *  view, and whatever the server has handed this account). Picking hands the
+ *  chosen group's id to `then`; Cancel, Back or tapping outside does nothing. */
+function chooseGroupFor(action, then) {
+  const groups = liveGroups();
+  if (!groups.length) { toast("Create a group first."); return; }
+  const list = el("div", { class: "gcards" });
+  const rows = groups.map(g => {
+    const n = liveMembers(g).length;
+    const row = el("button", { class: "gcard pickgrp", type: "button", "data-gid": g.id,
+      "aria-label": action + " in " + g.name,
+      onclick: () => { closeModal(); then(g.id); } }, [
+      el("span", { class: "gico", "aria-hidden": "true", text: initials(g.name) }),
+      el("span", { class: "gi" }, [
+        el("div", { class: "gn", text: g.name }),
+        el("div", { class: "gs", text: n + (n === 1 ? " member" : " members") })
+      ])
+    ]);
+    row.dataset.hay = g.name.toLowerCase();
+    list.appendChild(row);
+    return row;
+  });
+  const body = [el("p", { class: "hint", style: "margin:0", text: "Which group is this for?" })];
+  if (groups.length > 6) {
+    const q = el("input", { type: "text", placeholder: "Search groups", "aria-label": "Search groups", autocomplete: "off" });
+    q.addEventListener("input", () => {
+      const t = q.value.trim().toLowerCase();
+      rows.forEach(r => { r.hidden = !!t && r.dataset.hay.indexOf(t) < 0; });
+    });
+    body.push(q);
+  }
+  body.push(list);
+  openModal("Select group", body, [el("button", { class: "btn", text: "Cancel", onclick: closeModal })]);
 }
 
 function renderGroupsList(v) {
   const groups = liveGroups();
-  if (!groups.length) { v.appendChild(emptyNoGroup()); return; }
-  const cards = el("div", { class: "gcards" });
-  groups.forEach(g => cards.appendChild(groupCard(g, groupFigures(g))));
-  v.appendChild(cards);
+  if (!groups.length) v.appendChild(emptyNoGroup());
+  else {
+    const cards = el("div", { class: "gcards" });
+    groups.forEach(g => cards.appendChild(groupCard(g, groupFigures(g))));
+    v.appendChild(cards);
+  }
+  if (sharingAvailable()) v.appendChild(el("div", { style: "text-align:center;margin-top:16px" }, [
+    el("button", { class: "linkbtn", type: "button", text: "Join a group with an invite link", onclick: openPasteInvite })
+  ]));
 }
 
 /** Balances: where you stand in every group, before the selected group's
@@ -1689,6 +1719,9 @@ function renderTop() {
   acts.appendChild(el("button", { class: "btn", onclick: () => openSettleModal(null) }, [
     iconSvg("M2 8h12M10 4l4 4-4 4"), document.createTextNode("Settle up")
   ]));
+  if (sharingAvailable() && !g.sample && !g.localOnly) acts.appendChild(el("button", {
+    class: "btn", title: "Share group", "aria-label": "Share group", onclick: () => openShareModal(S.group)
+  }, [iconSvg("M8 10V2.5M5 5.2L8 2.3l3 2.9M3.5 8.5v4.3c0 .4.3.7.7.7h7.6c.4 0 .7-.3.7-.7V8.5"), el("span", { class: "wide-only", text: "Share" })]));
   acts.appendChild(el("button", { class: "btn btn-ghost", title: "Group settings", "aria-label": "Group settings", onclick: () => openGroupModal(S.group) }, [
     iconSvg("M8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4zM8 1.6v1.6M8 12.8v1.6M14.4 8h-1.6M3.2 8H1.6M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1M12.5 12.5l-1.1-1.1M4.6 4.6L3.5 3.5")
   ]));
@@ -2329,17 +2362,30 @@ function renderInsights(v) {
 /* ==========================================================
    7. Modals
    ========================================================== */
-var backStack = [], pendingPops = 0;
+var backStack = [], pendingPops = 0, queuedBacks = 0;
 function pushBack(key, closeFn) {
   backStack.push({ key: key, close: closeFn });
   try { history.pushState({ sl: key }, ""); } catch (e) { }
+}
+/* Entries released in one go (leaving a group AND its tab; closing one dialog
+   and opening the next) are unwound in ONE traversal at the end of the task.
+   Two history.back() calls in a row are not two steps: the browser runs one
+   traversal at a time and drops the second, so pendingPops would be left one
+   too high (swallowing the person's next real Back) and the history one entry
+   too deep — and the next release walked off the page altogether. history.go(-n)
+   is a single traversal and fires a single popstate. */
+function flushBacks() {
+  var n = queuedBacks; queuedBacks = 0;
+  if (n <= 0) return;
+  pendingPops++;
+  try { history.go(-n); } catch (e) { pendingPops--; }
 }
 function releaseBack(key) {
   for (var i = backStack.length - 1; i >= 0; i--) {
     if (backStack[i].key !== key) continue;
     var wasTop = (i === backStack.length - 1);
     backStack.splice(i, 1);
-    if (wasTop) { pendingPops++; try { history.back(); } catch (e) { pendingPops--; } }
+    if (wasTop) { if (++queuedBacks === 1) Promise.resolve().then(flushBacks); }
     return;
   }
 }
@@ -2509,6 +2555,192 @@ window.__contactPicked = function (nameEnc, phonesEnc) {
   pickNumberSheet(name || numbers[0].raw, numbers,
                   chosen => cb({ name: name || chosen, phone: chosen }));
 };
+
+/* ---------- sharing a group: invite links ----------
+ *
+ * Share makes (or reuses) an invite link on the server — a random token that
+ * has nothing to do with the group's id — and hands a short message with it
+ * to Android's own share sheet, so WhatsApp, Gmail, Messages and whatever
+ * else is installed can send it. Nothing in the message but the group's name
+ * and the link: no balances, numbers or ids.
+ *
+ * Tapping the link opens the app (an Android App Link, or the "Open in Split
+ * Buddy" button on the page the link shows in a browser). The app asks the
+ * server what the link opens, shows it, and joins only when Join is tapped.
+ * Someone who has just installed is asked to sign in first; the invite waits.
+ */
+const INVITE_RE = /(?:\/join\/|splitbuddy:\/\/join\/)([A-Za-z0-9_-]{16,64})/;
+function sharingAvailable() { return SYNC_ENABLED && !S.db; }
+function inviteToken(text) { const m = String(text || "").match(INVITE_RE); return m ? m[1] : null; }
+function inviteMessage(g, link) {
+  return "You're invited to join “" + g.name + "” on Split Buddy.\n\n"
+    + "Track shared expenses, balances and settlements together.\n\n"
+    + "Join the group:\n" + link + "\n\n— Split Buddy";
+}
+async function copyText(text) {
+  try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; } } catch (e) { }
+  try {
+    const ta = el("textarea", { readonly: "readonly", style: "position:fixed;opacity:0;top:0;left:0" });
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand("copy"); ta.remove(); return ok;
+  } catch (e) { return false; }
+}
+function shareOut(subject, text) {
+  const b = window.AndroidBridge;
+  if (b && typeof b.shareText === "function") { try { b.shareText(subject, text); return; } catch (e) { } }
+  if (navigator.share) { navigator.share({ title: subject, text: text }).catch(() => {}); return; }
+  copyText(text).then(ok => toast(ok ? "Invite copied — paste it into any app" : "Copy the link and send it"));
+}
+window.__shareFailed = function () { toast("Couldn't open sharing — use Copy link instead."); };
+
+/** A link for this group: the one this phone made earlier if it still has a
+ *  day left, otherwise a new one from the server. */
+async function inviteLinkFor(g, fresh) {
+  const key = "sl.invite." + g.id, now = Date.now();
+  const had = LS.get(key, null);
+  if (!fresh && had && had.link && Date.parse(had.expires) - now > 864e5) return had;
+  // the server can only invite to a group it has heard of
+  if ((dirtySet().groups || []).indexOf(g.id) >= 0) await syncNow(true);
+  if (!(myIdentity() || {}).accessToken) await ensureSession();
+  const d = await api("/invites", { group_id: g.id });
+  const out = { link: serverUrl() + d.path, expires: d.expires_at, days: d.days };
+  LS.set(key, out);
+  return out;
+}
+
+function openShareModal(g) {
+  if (!g) return;
+  const status = el("p", { class: "hint", text: "Making an invite link…" });
+  const linkIn = el("input", { type: "text", readonly: "readonly", "aria-label": "Invite link", value: "" });
+  const shareBtn = el("button", { class: "btn btn-primary", type: "button", disabled: "disabled" },
+    [iconSvg("M8 10V2.5M5 5.2L8 2.3l3 2.9M3.5 8.5v4.3c0 .4.3.7.7.7h7.6c.4 0 .7-.3.7-.7V8.5"), document.createTextNode("Share…")]);
+  const copyBtn = el("button", { class: "btn", type: "button", text: "Copy link", disabled: "disabled" });
+  let current = null;
+  function show(inv) {
+    current = inv;
+    linkIn.value = inv.link;
+    shareBtn.removeAttribute("disabled"); copyBtn.removeAttribute("disabled");
+    const left = Math.max(1, Math.round((Date.parse(inv.expires) - Date.now()) / 864e5));
+    status.textContent = "Anyone you send this to can ask to join — they'll see the group's name and tap Join. "
+      + "The link works for " + left + (left === 1 ? " more day." : " more days.");
+  }
+  function fail(e) {
+    const m = e && e.message;
+    status.textContent = m === "offline"
+      ? "Can't reach the server right now — check your connection and try again."
+      : (m || "Couldn't make an invite link.");
+  }
+  shareBtn.addEventListener("click", () => {
+    if (!current) return;
+    shareOut("You're invited to join my Split Buddy group", inviteMessage(g, current.link));
+  });
+  copyBtn.addEventListener("click", async () => {
+    if (!current) return;
+    toast(await copyText(current.link) ? "Invite link copied." : "Select the link and copy it.");
+  });
+  const body = [
+    el("div", { class: "field" }, [el("label", { text: "Group" }), el("div", { style: "font-weight:600;font-size:16px", text: g.name })]),
+    el("div", { class: "field" }, [el("label", { text: "Invite link" }), linkIn]),
+    status
+  ];
+  if (iAmAdmin(g)) body.push(el("button", {
+    class: "linkbtn", type: "button", style: "align-self:flex-start",
+    text: "Make a new link (old links stop working)",
+    onclick: async () => {
+      status.textContent = "Making a new link…";
+      try {
+        await api("/invites/revoke", { group_id: g.id });
+        show(await inviteLinkFor(g, true));
+        toast("New link made — old links no longer work.");
+      } catch (e) { fail(e); }
+    }
+  }));
+  openModal("Share group", body, [el("button", { class: "btn", type: "button", text: "Close", onclick: closeModal }), copyBtn, shareBtn]);
+  inviteLinkFor(g, false).then(show, fail);
+}
+
+/* ---------- receiving an invite ---------- */
+window.__linkArrived = function () {
+  const b = window.AndroidBridge;
+  let link = "";
+  try { link = b && typeof b.pendingLink === "function" ? String(b.pendingLink() || "") : ""; } catch (e) { link = ""; }
+  const token = inviteToken(link);
+  if (!token) return;
+  LS.set("sl.pendingInvite", token);
+  if (!myIdentity()) { toast("Sign in to see your invite."); return; }   // the sign-in screen is up
+  showInvite(token);
+};
+// Opened from a link: MainActivity holds it until the page asks.
+setTimeout(() => window.__linkArrived(), 0);
+
+function openPasteInvite() {
+  const inp = el("input", { type: "text", placeholder: "Paste the invite link", autocomplete: "off", "aria-label": "Invite link" });
+  const err = el("div", { class: "hint", style: "color:var(--neg)" });
+  const go = () => {
+    const t = inviteToken(inp.value);
+    if (!t) { err.textContent = "That doesn't look like a Split Buddy invite link."; return; }
+    closeModal(); LS.set("sl.pendingInvite", t); showInvite(t);
+  };
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  openModal("Join with an invite link", [
+    el("p", { class: "hint", text: "If tapping the link didn't open Split Buddy, paste it here." }), inp, err
+  ], [el("button", { class: "btn", text: "Cancel", onclick: closeModal }), el("button", { class: "btn btn-primary", text: "Continue", onclick: go })]);
+  setTimeout(() => inp.focus(), 60);
+}
+
+async function showInvite(token) {
+  if (!token) return;
+  const done = () => LS.set("sl.pendingInvite", null);
+  const say = (title, text, extra) => openModal(title, [el("p", { class: "confirm-text", text: text })],
+    [el("button", { class: extra ? "btn" : "btn btn-primary", text: "OK", onclick: closeModal })].concat(extra || []));
+  let d;
+  try {
+    if (!(myIdentity() || {}).accessToken) await ensureSession();
+    d = await api("/invites/preview", { token: token });
+  } catch (e) {
+    const off = e && e.message === "offline";
+    openModal("Group invite", [el("p", { class: "confirm-text", text: off
+      ? "Can't reach the server yet — on the free plan it can take up to a minute to wake. Your invite is kept; try again in a moment."
+      : (e && e.message) || "Couldn't open the invite." })],
+      [el("button", { class: "btn", text: "Later", onclick: closeModal }),
+       el("button", { class: "btn btn-primary", text: "Try again", onclick: () => { closeModal(); showInvite(token); } })]);
+    return;
+  }
+  const openIt = gid => el("button", { class: "btn btn-primary", text: "Open group", onclick: async () => {
+    closeModal(); SYNC.fullPull = true; await syncNow(true);
+    if (S.groups.some(x => x.id === gid && !x.deleted)) openGroup(gid);
+  } });
+  if (d.status === "already_member" || d.status === "owner") {
+    done(); say("Group invite", d.message, d.group_id ? [openIt(d.group_id)] : null); return;
+  }
+  if (d.status !== "ok") { done(); say("Invite not available", d.message); return; }
+
+  const gi = d.group;
+  const card = el("div", { class: "gcard", style: "box-shadow:none" }, [
+    el("span", { class: "gico", "aria-hidden": "true", text: initials(gi.name) }),
+    el("span", { class: "gi" }, [
+      el("div", { class: "gn", text: gi.name }),
+      el("div", { class: "gs", text: gi.members + (gi.members === 1 ? " member" : " members") + " · " + fmt(gi.total_minor, gi.currency) + " tracked" })
+    ])
+  ]);
+  const join = el("button", { class: "btn btn-primary", type: "button", text: "Join group" });
+  join.addEventListener("click", async () => {
+    join.setAttribute("disabled", "disabled"); join.textContent = "Joining…";
+    let r;
+    try { r = await api("/invites/accept", { token: token }); }
+    catch (e) { join.removeAttribute("disabled"); join.textContent = "Join group"; toast(e && e.message === "offline" ? "No connection — try again" : (e && e.message) || "Couldn't join"); return; }
+    done(); closeModal();
+    if (r.status !== "joined" && r.status !== "already_member" && r.status !== "owner") { say("Invite not available", r.message); return; }
+    SYNC.fullPull = true;
+    await syncNow(true);
+    if (S.groups.some(x => x.id === r.group_id && !x.deleted && !x.revoked)) openGroup(r.group_id);
+    toast(r.status === "joined" ? "You've joined “" + gi.name + "”" : r.message);
+  });
+  openModal("You've been invited", [
+    el("p", { class: "hint", text: "You've been invited to join this group on Split Buddy:" }), card,
+    el("p", { class: "hint", text: "Joining adds you as a member. Everyone in the group will see your name and number, as they do for every member." })
+  ], [el("button", { class: "btn", text: "Cancel", onclick: () => { done(); closeModal(); } }), join]);
+}
 
 /* ---------- choosing several contacts at once ----------
  *
@@ -3248,7 +3480,7 @@ function prettyPhone(e164) {
    build script so it cannot quietly drift. Shown in the connection check, next
    to the server's own build, because "is the server actually running what I
    pushed?" is otherwise unanswerable from a phone. */
-const APP_VERSION = "3.11";
+const APP_VERSION = "3.13";
 
 function myIdentity() { return LS.get("sl.identity", null); }
 function myPhone() { const i = myIdentity(); return i ? i.mobile : null; }
@@ -3429,8 +3661,6 @@ function setSyncState(state, error) {
   if (state === "ok") SYNC.at = Date.now();
   const bar = $("#syncBar");
   if (bar) drawSyncBar();
-  const hs = document.getElementById("homeStatus");
-  if (hs && S.section === "home") hs.replaceWith(syncLine());
   // The "finding your groups" card says whether the server is answering.
   if (LS.get("sl.awaitingFirstSync", false) && !liveGroups().length) render();
 }
@@ -4106,6 +4336,7 @@ function afterSignIn() {
   render();
   if (LOCK_ENABLED && !lockIsSet() && !LS.get("sl.lockSkipped", false)) showLock("setup");
   scheduleSync(400);
+  if (LS.get("sl.pendingInvite", null)) setTimeout(() => showInvite(LS.get("sl.pendingInvite", null)), 600);
 }
 
 /* ---------- server settings ---------- */

@@ -5,7 +5,7 @@ this project is, what the pieces are called, how they are joined together, and
 which decisions are already settled and why. Everything else in `docs/` goes
 deeper on one topic; this is the map.
 
-Last updated for **3.11 (versionCode 25)**, 3 October 2026.
+Last updated for **3.13 (versionCode 27)**, 3 October 2026.
 
 ---
 
@@ -79,8 +79,10 @@ app↔database hop happens on every request.
 
 This is the part that confuses, so it is worth being exact.
 
-**The mobile number is the only link.** There are no invite codes, no QR codes,
-no usernames.
+**The mobile number is the main link.** Since 3.12 there is also a shareable
+invite link (Share in an open group): `…/join/<token>`, valid 14 days, joined
+only after the person signs in and taps Join. There are no QR codes and no
+usernames.
 
 1. You create a group and add someone by their mobile number.
 2. The number is normalised to E.164 — `98765 43210`, `+91 98765 43210` and
@@ -213,13 +215,15 @@ automatically; being dormant is not a reason to be locked out.
 
 ## 6. Versions
 
-Current: **3.11 / versionCode 25.**
+Current: **3.13 / versionCode 27.**
 
 `versionCode` must go **up** every release or Play refuses the upload and
 Android refuses the update.
 
 | | What it was about |
 |---|---|
+| 3.13 | Home: sync row moved to the drawer only; Add expense asks which group; Back-history fix |
+| 3.12 | Share group: invite links via the Android share sheet, Join flow |
 | 3.11 | Bottom navigation: Home, Groups, Analytics, Bills, Balances |
 | 3.10 | Choose several contacts at once (in-app picker, Done (n)) |
 | 3.9 | Added-before-installing made dependable: server's group list is authoritative, removal reaches the removed, sleeping-server first sign-in |
@@ -415,6 +419,10 @@ Not bugs that bite at this size, but they are real:
 - **Refused changes, end to end:** `cd e2e && ./run.sh` — nine scenarios, two
   phones, a real local server; added in 3.8 for the repeating "change refused"
   toast.
+- **Add expense from Home, end to end:** `cd e2e && ./run.sh addexp`. Added in 3.13.
+- **Invites, end to end:** `cd e2e && ./run.sh invites` — Share, the share
+  message, join from a new install, repeat/owner/expired/revoked/deleted/invalid
+  links, paste-a-link, the browser page. Added in 3.12.
 - **Bottom navigation, end to end:** `cd e2e && ./run.sh nav` — every tab,
   repeated switching, Back, scrolling, 412–280px widths. Added in 3.11.
 - **Contact picker, end to end:** `cd e2e && ./run.sh contacts` — choosing

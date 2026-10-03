@@ -39,7 +39,7 @@ class Phone:
         return p
 
     @classmethod
-    async def install(cls, browser, name, typed_number, asleep_for=0):
+    async def install(cls, browser, name, typed_number, asleep_for=0, init=None):
         """A brand-new install: empty storage, then sign in through the real
         sign-in screen, exactly as a person would. With `asleep_for`, every
         request to the server hangs for that many seconds first and then
@@ -48,6 +48,8 @@ class Phone:
         ctx = await browser.new_context(viewport={"width": 412, "height": 915})
         await ctx.add_init_script(
             f"try {{ localStorage.setItem('sl.server', JSON.stringify('{SERVER}')); }} catch(e) {{}}")
+        if init:
+            await ctx.add_init_script(init)
         page = await ctx.new_page()
         p = cls(ctx, page, name, typed_number)
         page.on("request", p._on_request)

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.sherinlal.splitledger"
-    android:versionCode="25"
-    android:versionName="3.11">
+    android:versionCode="27"
+    android:versionName="3.13">
 
     <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="34" />
 
@@ -36,6 +36,24 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Group invite links. Verified App Link: tapping
+                 https://split-ledger-71my.onrender.com/join/<token> opens the
+                 app directly once Android has checked the server's
+                 /.well-known/assetlinks.json against this app's certificate. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="split-ledger-71my.onrender.com" android:pathPrefix="/join/" />
+            </intent-filter>
+            <!-- ...and the "Open in Split Buddy" button on that page, for when
+                 the link opened in the browser instead. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="splitbuddy" android:host="join" />
             </intent-filter>
         </activity>
     </application>

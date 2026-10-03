@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .auth.router import router as auth_router
+from .invites.router import router as invites_router
 from .config import get_settings
 from .database import init_db
 from .middleware import errors
@@ -36,6 +37,7 @@ errors.install(app)
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(sync_router)
+app.include_router(invites_router)
 
 
 @app.on_event("startup")
@@ -53,7 +55,7 @@ async def startup() -> None:
 # actually been redeployed since the last push — "the code is on GitHub" and
 # "the code is running on Render" are different things, and the difference has
 # already cost an evening.
-SERVER_BUILD = "3.11"
+SERVER_BUILD = "3.13"
 
 
 @app.get("/health", tags=["ops"])

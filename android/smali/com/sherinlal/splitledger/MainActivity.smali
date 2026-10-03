@@ -5,8 +5,10 @@
 
 # The whole app: one Activity hosting a WebView that loads assets/index.html.
 #
-# The one native capability exposed to the page is pickContact(), which fires
-# Android's own contact picker as a separate activity.
+# Native capabilities exposed to the page (AndroidBridge): the contact picker
+# (pickContact, askContacts/contacts), Android's share sheet (shareText), and
+# the invite link the app was opened with (pendingLink). The single-contact
+# picker, the original one, fires Android's own picker as a separate activity.
 #
 # The picker alone returns a single number, and on some phones that is whichever
 # one the contact app considers primary -- so adding "Murali" could quietly use
@@ -25,6 +27,14 @@
 # 0 = open Android's single-contact picker (pickContact), 1 = tell the page the
 # address book can be read now, for its own multi-select picker (askContacts).
 .field private mode:I
+
+# A link the app was opened with (an invite: https://.../join/<token> or
+# splitbuddy://join/<token>), held until the page asks for it.
+.field private link:Ljava/lang/String;
+
+# What the page asked to share, waiting for the UI thread.
+.field private shareSubject:Ljava/lang/String;
+.field private shareBody:Ljava/lang/String;
 
 # Contact id of the row the picker returned. A field rather than a local
 # because onActivityResult is already using all sixteen registers it is allowed.
@@ -71,12 +81,19 @@
     invoke-virtual {v0, v2}, Landroid/webkit/WebView;->setFitsSystemWindows(Z)V
 
     # the page's only route to native code; @JavascriptInterface gates it to
-    # the annotated methods below (pickContact, askContacts, contacts)
+    # the annotated methods below (pickContact, askContacts, contacts,
+    # shareText, pendingLink)
     const-string v1, "AndroidBridge"
 
     invoke-virtual {v0, p0, v1}, Landroid/webkit/WebView;->addJavascriptInterface(Ljava/lang/Object;Ljava/lang/String;)V
 
     invoke-virtual {p0, v0}, Lcom/sherinlal/splitledger/MainActivity;->setContentView(Landroid/view/View;)V
+
+    # opened from an invite link? keep it for the page
+    invoke-virtual {p0}, Lcom/sherinlal/splitledger/MainActivity;->getIntent()Landroid/content/Intent;
+    move-result-object v1
+
+    invoke-direct {p0, v1}, Lcom/sherinlal/splitledger/MainActivity;->remember(Landroid/content/Intent;)V
 
     const-string v1, "file:///android_asset/index.html"
 
@@ -147,6 +164,163 @@
 .end method
 
 
+# ---------------------------------------------------------------- sharing
+#
+# The page asks to share a piece of text (a group invite); Android's own share
+# sheet does the rest, so WhatsApp, Gmail, Messages and anything else
+# installed that takes text appear by themselves. No permission is involved.
+.method public shareText(Ljava/lang/String;Ljava/lang/String;)V
+    .registers 4
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    iput-object p1, p0, Lcom/sherinlal/splitledger/MainActivity;->shareSubject:Ljava/lang/String;
+
+    iput-object p2, p0, Lcom/sherinlal/splitledger/MainActivity;->shareBody:Ljava/lang/String;
+
+    const/4 v0, 0x2
+
+    iput v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
+
+    invoke-virtual {p0, p0}, Lcom/sherinlal/splitledger/MainActivity;->runOnUiThread(Ljava/lang/Runnable;)V
+
+    return-void
+.end method
+
+
+# On the UI thread: ACTION_SEND text/plain, through the chooser.
+.method private doShare()V
+    .registers 6
+
+    :try_start_0
+    new-instance v0, Landroid/content/Intent;
+
+    const-string v1, "android.intent.action.SEND"
+
+    invoke-direct {v0, v1}, Landroid/content/Intent;-><init>(Ljava/lang/String;)V
+
+    const-string v1, "text/plain"
+
+    invoke-virtual {v0, v1}, Landroid/content/Intent;->setType(Ljava/lang/String;)Landroid/content/Intent;
+
+    const-string v1, "android.intent.extra.SUBJECT"
+
+    iget-object v2, p0, Lcom/sherinlal/splitledger/MainActivity;->shareSubject:Ljava/lang/String;
+
+    if-nez v2, :have_subject
+
+    const-string v2, ""
+
+    :have_subject
+    invoke-virtual {v0, v1, v2}, Landroid/content/Intent;->putExtra(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;
+
+    const-string v1, "android.intent.extra.TEXT"
+
+    iget-object v2, p0, Lcom/sherinlal/splitledger/MainActivity;->shareBody:Ljava/lang/String;
+
+    if-nez v2, :have_body
+
+    const-string v2, ""
+
+    :have_body
+    invoke-virtual {v0, v1, v2}, Landroid/content/Intent;->putExtra(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;
+
+    const-string v1, "Share group"
+
+    invoke-static {v0, v1}, Landroid/content/Intent;->createChooser(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;
+    move-result-object v3
+
+    invoke-virtual {p0, v3}, Lcom/sherinlal/splitledger/MainActivity;->startActivity(Landroid/content/Intent;)V
+    :try_end_0
+    .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
+
+    return-void
+
+    # nothing on the phone can take it: tell the page, which offers Copy link
+    :catch_0
+    move-exception v0
+
+    iget-object v1, p0, Lcom/sherinlal/splitledger/MainActivity;->w:Landroid/webkit/WebView;
+
+    if-eqz v1, :done
+
+    const-string v2, "javascript:if(window.__shareFailed)window.__shareFailed()"
+
+    invoke-virtual {v1, v2}, Landroid/webkit/WebView;->loadUrl(Ljava/lang/String;)V
+
+    :done
+    return-void
+.end method
+
+
+# ------------------------------------------------------------- invite links
+#
+# The link the app was opened with, once: the page reads it on start-up and
+# again whenever onNewIntent says another one has arrived.
+.method public pendingLink()Ljava/lang/String;
+    .registers 3
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    iget-object v0, p0, Lcom/sherinlal/splitledger/MainActivity;->link:Ljava/lang/String;
+
+    const/4 v1, 0x0
+
+    iput-object v1, p0, Lcom/sherinlal/splitledger/MainActivity;->link:Ljava/lang/String;
+
+    if-nez v0, :have
+
+    const-string v0, ""
+
+    :have
+    return-object v0
+.end method
+
+
+.method private remember(Landroid/content/Intent;)V
+    .registers 3
+
+    if-eqz p1, :done
+
+    invoke-virtual {p1}, Landroid/content/Intent;->getData()Landroid/net/Uri;
+    move-result-object v0
+
+    if-eqz v0, :done
+
+    invoke-virtual {v0}, Landroid/net/Uri;->toString()Ljava/lang/String;
+    move-result-object v0
+
+    iput-object v0, p0, Lcom/sherinlal/splitledger/MainActivity;->link:Ljava/lang/String;
+
+    :done
+    return-void
+.end method
+
+
+# The app is singleTask, so a link tapped while it is already running arrives
+# here rather than in onCreate.
+.method protected onNewIntent(Landroid/content/Intent;)V
+    .registers 4
+
+    invoke-super {p0, p1}, Landroid/app/Activity;->onNewIntent(Landroid/content/Intent;)V
+
+    invoke-virtual {p0, p1}, Lcom/sherinlal/splitledger/MainActivity;->setIntent(Landroid/content/Intent;)V
+
+    invoke-direct {p0, p1}, Lcom/sherinlal/splitledger/MainActivity;->remember(Landroid/content/Intent;)V
+
+    iget-object v0, p0, Lcom/sherinlal/splitledger/MainActivity;->w:Landroid/webkit/WebView;
+
+    if-eqz v0, :done
+
+    const-string v1, "javascript:if(window.__linkArrived)window.__linkArrived()"
+
+    invoke-virtual {v0, v1}, Landroid/webkit/WebView;->loadUrl(Ljava/lang/String;)V
+
+    :done
+    return-void
+.end method
+
+
 # Permission settled (granted or not): do what was asked for.
 .method private proceed()V
     .registers 4
@@ -187,6 +361,23 @@
     #   VerifyError ... tried to get class from non-reference register v3
     # The app would not start at all. Locals must stay below the parameters.
     .registers 5
+
+    # mode 2 is a share request, which needs no permission at all
+    iget v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
+
+    const/4 v1, 0x2
+
+    if-ne v0, v1, :cond_not_share
+
+    const/4 v0, 0x0
+
+    iput v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
+
+    invoke-direct {p0}, Lcom/sherinlal/splitledger/MainActivity;->doShare()V
+
+    return-void
+
+    :cond_not_share
 
     const-string v0, "android.permission.READ_CONTACTS"
 

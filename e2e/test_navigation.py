@@ -184,6 +184,9 @@ async def s_back_button(br):
         await tap(a, sec)
     await a.page.go_back(); await a.page.wait_for_timeout(250)
     check((await state(a))["active"] == ["home"], f"after hopping, Back went to {(await state(a))['active']}", problems)
+    await a.page.wait_for_timeout(300)
+    hist = await a.page.evaluate("({ stack: window.__t('backStack.length'), pend: window.__t('pendingPops'), url: location.href })")
+    check(hist["stack"] == 0 and hist["pend"] == 0 and hist["url"].endswith("/index.html"), f"back history out of step: {hist}", problems)
     return problems
 
 
@@ -277,7 +280,10 @@ async def s_drawer_still_works(br):
     check(st["active"] == ["bills"] and st["title"] == "Sirsi trip", f"drawer pick: {st['active']} {st['title']}", problems)
     check("Bus" in st["view"], "Bills did not switch group", problems)
     await tap(a, "home")
-    check("Synced" in (await a.page.text_content("#homeStatus")), "Home has no sync status", problems)
+    # 3.13: sync status and Account live in the drawer only, not on Home
+    view = await a.page.text_content("#view")
+    check(await a.page.locator("#homeStatus").count() == 0 and "Account" not in view and "Synced" not in view,
+          "Home still shows the sync/Account row", problems)
     return problems
 
 

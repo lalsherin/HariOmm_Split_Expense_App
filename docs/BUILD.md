@@ -112,6 +112,112 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 3.13 (versionCode 27)
+
+**Home: no sync row; Add expense asks which group.**
+
+- The *● Synced · Account* row is gone from Home (`syncLine()` and its refresh
+  hook removed). Sync status, Account and Connection check are unchanged in
+  the drawer (`#syncBar`).
+- Home's **Add expense** used whatever group was last selected (`S.gid`,
+  persisted as `sl.lastGroup`), so it silently added to the last group used.
+  It now opens *Select group* (`chooseGroupFor`), with nothing pre-selected.
+  The list is `liveGroups()`: no deleted groups, none removed from your view,
+  and whatever the server has given this account. A search box appears above
+  six groups. The chosen group's **id** is handed to the unchanged expense
+  dialog. Cancel, Back and tapping outside open nothing.
+- Unchanged: the **+** on a group card and **Add expense** inside a group or
+  on Bills still go straight to that group.
+
+**Fixed, phone build: Back-button history could drift.** Closing two things in
+one step (leaving an open group for Home, or closing a dialog and opening the
+next) called `history.back()` twice. The browser runs one traversal at a time
+and drops the second, so `pendingPops` stayed one too high and swallowed the
+person's next Back. The history also stayed one entry too deep, and a later
+close could walk off the page. Releases are now batched into one
+`history.go(-n)` at the end of the task (`flushBacks`, in `build_asset.js`).
+Found by the new test: *Select group → Add expense → save* left the page.
+
+Verified:
+- `e2e/test_add_expense_group.py`, 6 scenarios: the 11-step acceptance flow
+  checked on the phone and the server, card + and in-group unchanged,
+  cancel/back/outside, the list after remove/delete and a late install,
+  same-named groups, search.
+- The nav suite also checks the history is back in step.
+- All earlier suites pass.
+
+### 3.12 (versionCode 26)
+
+**Share a group: invite links through WhatsApp, Gmail, Messages, anything.**
+
+*Share* in an open group's header makes an invite link and hands a short
+message to Android's own share sheet (`ACTION_SEND` text/plain through a
+chooser). The user picks the app and the recipient; nothing is integrated with
+WhatsApp or Gmail directly. *Copy link* puts just the link on the clipboard.
+
+The message carries only the group's name and the link:
+
+    You're invited to join "App development" on Split Buddy.
+    Track shared expenses, balances and settlements together.
+    Join the group:
+    https://split-ledger-71my.onrender.com/join/<token>
+    — Split Buddy
+
+**Invites (server).** A new table, `group_invites`, created at startup like the
+others:
+- **Token:** 128 random bits from `secrets`, unrelated to the group id. Only
+  its SHA-256 is stored.
+- **Expiry:** 14 days (`INVITE_DAYS`).
+- **Revoking:** the owner's *Make a new link* revokes every older link
+  (`POST /invites/revoke`, owner only, checked on the server).
+- **Who can share:** any member. Members can already add people by number, so
+  this gives nobody a new power.
+- **Endpoints:** `POST /invites`, `/invites/preview` and `/invites/accept`.
+  All need a session, so the server decides who is joining.
+- **Checks before joining, in order:**
+  1. the token exists;
+  2. it is not revoked;
+  3. it is not expired;
+  4. the group exists and is not deleted;
+  5. you are not the owner;
+  6. you are not already a member (by account or by number; an unclaimed
+     placeholder for your number is claimed instead of duplicated).
+- **Joining** is one ordinary `group_members` row, so sync, balances and the
+  late-install rules apply unchanged. It also cancels an earlier "remove from
+  my view", as being re-added does.
+
+**Opening a link.**
+- **App Link:** the activity now has an `autoVerify` intent filter for
+  `https://split-ledger-71my.onrender.com/join/…`. The server serves
+  `/.well-known/assetlinks.json` with the signing certificate's SHA-256
+  (`ANDROID_CERT_SHA256`, comma-separated so Play's app-signing key can be
+  added later).
+- **Browser page:** if Android has not verified the link, it opens in the
+  browser at `GET /join/<token>`. The page shows the group's name only, an
+  *Open in Split Buddy* button (`intent://join/<token>`, matched by a
+  `splitbuddy://join` filter), and how to install. It is `no-store` and
+  `noindex`.
+- **Native:** MainActivity keeps the link from `onCreate`/`onNewIntent` and
+  the page collects it with the new `pendingLink()` bridge method.
+- **In the app:** a confirmation (name, member count, amount tracked) with
+  **Join group** and **Cancel**. Opening a link never adds anyone.
+- **Not signed in yet** (a new install): the invite waits and appears after
+  sign-in.
+- **Fallback:** Groups → *Join a group with an invite link* accepts a pasted
+  link if nothing else opened the app.
+
+**Native code added:** `shareText`, `doShare`, `pendingLink`, `remember`,
+`onNewIntent`. `verify_dex.sh`: both classes verify, and all 41 framework
+references exist in API 23.
+
+Verified:
+- 17 backend tests in `tests/test_invites.py`, on SQLite and PostgreSQL 16;
+- 7 end-to-end scenarios in `e2e/test_invites.py`, including the whole flow
+  from a new install;
+- every earlier suite.
+**Not verified:** the share sheet and the link actually opening the app on a
+real phone; that needs a device.
+
 ### 3.11 (versionCode 25)
 
 **A bottom navigation bar: Home, Groups, Analytics, Bills, Balances.**
