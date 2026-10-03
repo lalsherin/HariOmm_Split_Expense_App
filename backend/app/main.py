@@ -55,7 +55,7 @@ async def startup() -> None:
 # actually been redeployed since the last push — "the code is on GitHub" and
 # "the code is running on Render" are different things, and the difference has
 # already cost an evening.
-SERVER_BUILD = "3.13"
+SERVER_BUILD = "3.14"
 
 
 @app.get("/health", tags=["ops"])

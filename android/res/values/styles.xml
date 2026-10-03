@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <!-- HexaNxt deep navy behind the page and under the system bars,
+             so the app opens dark with no grey flash before the page draws. -->
         <item name="android:windowBackground">@color/window_bg</item>
+        <item name="android:statusBarColor">@color/window_bg</item>
+        <item name="android:navigationBarColor">@color/window_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

@@ -108,14 +108,13 @@ _PAGE = """<!doctype html>
 <meta name="robots" content="noindex, nofollow">
 <title>{title}</title>
 <style>
-:root {{ color-scheme: light dark; --bg:#eef0f4; --card:#fff; --ink:#141822; --muted:#7b8497; --accent:#1b4fa0; --line:#dde1e9; }}
-@media (prefers-color-scheme: dark) {{ :root {{ --bg:#0b0d12; --card:#161a21; --ink:#e8ebf1; --muted:#8b93a5; --accent:#6ea2f0; --line:#262c36; }} }}
-body {{ margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }}
+:root {{ color-scheme: dark; --bg:#090717; --card:#12101f; --ink:#f3f1ff; --muted:#8f8aab; --accent:#9a85ff; --fill:#6d4ff5; --line:#231f3c; }}
+body {{ margin:0; background:var(--bg) radial-gradient(700px 360px at 50% -140px, rgba(124,92,255,.14), transparent 70%) no-repeat; color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }}
 main {{ max-width:440px; margin:0 auto; padding:40px 18px; }}
 .card {{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:26px 22px; text-align:center; }}
 h1 {{ font-size:21px; margin:6px 0 8px; }}
 p {{ color:var(--muted); margin:0 0 14px; }}
-.btn {{ display:block; text-decoration:none; background:var(--accent); color:#fff; font-weight:600; padding:13px 16px; border-radius:12px; margin:18px 0 10px; }}
+.btn {{ display:block; text-decoration:none; background:var(--fill); color:#fff; box-shadow:0 6px 20px -8px rgba(109,79,245,.6); font-weight:600; padding:13px 16px; border-radius:12px; margin:18px 0 10px; }}
 .small {{ font-size:13.5px; }}
 .brand {{ font-weight:700; letter-spacing:-.01em; color:var(--accent); }}
 ol {{ text-align:left; color:var(--muted); font-size:14px; padding-left:20px; margin:10px 0 0; }}

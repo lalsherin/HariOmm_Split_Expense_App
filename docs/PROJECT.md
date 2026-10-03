@@ -5,7 +5,7 @@ this project is, what the pieces are called, how they are joined together, and
 which decisions are already settled and why. Everything else in `docs/` goes
 deeper on one topic; this is the map.
 
-Last updated for **3.13 (versionCode 27)**, 3 October 2026.
+Last updated for **3.14 (versionCode 28)**, 3 October 2026.
 
 ---
 
@@ -215,13 +215,14 @@ automatically; being dormant is not a reason to be locked out.
 
 ## 6. Versions
 
-Current: **3.13 / versionCode 27.**
+Current: **3.14 / versionCode 28.**
 
 `versionCode` must go **up** every release or Play refuses the upload and
 Android refuses the update.
 
 | | What it was about |
 |---|---|
+| 3.14 | HexaNxt-aligned colours (deep navy, violet, teal); no layout or logic change |
 | 3.13 | Home: sync row moved to the drawer only; Add expense asks which group; Back-history fix |
 | 3.12 | Share group: invite links via the Android share sheet, Join flow |
 | 3.11 | Bottom navigation: Home, Groups, Analytics, Bills, Balances |

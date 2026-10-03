@@ -10,36 +10,42 @@
    tabular mono figures, hairline bill rules.
    ============================================================ */
 :root {
-  --page:        #eef0f4;
+  --page:        #f4f3f9;
   --surface:     #ffffff;
-  --surface-2:   #f6f7fa;
-  --surface-3:   #eaedf3;
-  --border:      #dde1e9;
-  --border-firm: #c6ccd9;
-  --ink:         #141822;
-  --ink-2:       #4c5464;
-  --muted:       #7b8497;
-  --accent:      #1b4fa0;
+  --surface-2:   #f8f7fc;
+  --surface-3:   #eeecf6;
+  --border:      #e3e0ee;
+  --border-firm: #cdc8e0;
+  --ink:         #15122a;
+  --ink-2:       #4d4866;
+  --muted:       #67627f;
+  --accent:      #5b3fd6;
   --accent-ink:  #ffffff;
-  --accent-soft: #e6edfa;
-  --accent-line: #b9cdf0;
+  --accent-soft: #efebff;
+  --accent-line: #cec3fa;
+  --accent-fill: #5b3fd6;   /* primary buttons: filled violet, white text */
+  --accent-fill-ink: #ffffff;
+  --accent-2:    #0b7a6c;   /* HexaNxt teal, used sparingly */
+  --neg-ink:     #ffffff;   /* text on a red (destructive) button */
   --pos:         #0f7a2e;   /* you get back */
   --neg:         #c0392f;   /* you owe */
   --pos-soft:    #e4f4e8;
   --neg-soft:    #fbe9e7;
   --gold:        #9a6a06;
 
-  --series:      #1b4fa0;
-  --series-soft: #cfdcf3;
-  --div-pos:     #1b4fa0;
+  --series:      #5b3fd6;
+  --series-soft: #ddd5fb;
+  --div-pos:     #0b7a6c;
   --div-neg:     #c0392f;
-  --grid:        #e3e6ed;
-  --axis:        #c6ccd9;
+  --grid:        #e6e3f0;
+  --axis:        #cdc8e0;
 
-  --shadow-sm: 0 1px 2px rgba(20,24,34,.06);
-  --shadow-md: 0 6px 24px -8px rgba(20,24,34,.22), 0 1px 2px rgba(20,24,34,.06);
-  --shadow-lg: 0 24px 64px -20px rgba(20,24,34,.42);
-
+  --page-glow:   none;
+  --glow:        0 6px 18px -10px rgba(91,63,214,.55);
+  --scrim:       rgba(21,18,42,.5);
+  --shadow-sm: 0 1px 2px rgba(21,18,42,.06);
+  --shadow-md: 0 6px 24px -8px rgba(21,18,42,.22), 0 1px 2px rgba(21,18,42,.06);
+  --shadow-lg: 0 24px 64px -20px rgba(21,18,42,.42);
   --r-sm: 6px; --r-md: 10px; --r-lg: 14px;
   --font-display: "Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
   --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -48,64 +54,78 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --page:        #0b0d12;
-    --surface:     #161a21;
-    --surface-2:   #1c212a;
-    --surface-3:   #232935;
-    --border:      #2a3140;
-    --border-firm: #3a4354;
-    --ink:         #edf0f6;
-    --ink-2:       #b2bac9;
-    --muted:       #838c9e;
-    --accent:      #6ba4ec;
-    --accent-ink:  #0b0d12;
-    --accent-soft: #18263c;
-    --accent-line: #2d4568;
-    --pos:         #3fbf63;
-    --neg:         #ef6a5c;
-    --pos-soft:    #14301c;
-    --neg-soft:    #35191a;
-    --gold:        #d9a441;
-    --series:      #5a9ae8;
-    --series-soft: #24344f;
-    --div-pos:     #5a9ae8;
-    --div-neg:     #ef6a5c;
-    --grid:        #242a35;
-    --axis:        #3a4354;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
-    --shadow-md: 0 6px 24px -8px rgba(0,0,0,.6), 0 1px 2px rgba(0,0,0,.4);
-    --shadow-lg: 0 24px 64px -20px rgba(0,0,0,.75);
+    --page:        #090717;   /* HexaNxt's own theme colour */
+    --surface:     #12101f;
+    --surface-2:   #17142a;
+    --surface-3:   #1e1a35;
+    --border:      #231f3c;
+    --border-firm: #352f5a;
+    --ink:         #f3f1ff;
+    --ink-2:       #b9b5d0;
+    --muted:       #8f8aab;
+    --accent:      #9a85ff;
+    --accent-ink:  #0d0a22;
+    --accent-soft: #1c1740;
+    --accent-line: #3a3170;
+    --accent-fill: #6d4ff5;
+    --accent-fill-ink: #ffffff;
+    --accent-2:    #2dd4bf;
+    --neg-ink:     #1a0806;
+    --pos:         #3ecf7a;
+    --neg:         #ff6f61;
+    --pos-soft:    #0f2a1d;
+    --neg-soft:    #36151b;
+    --gold:        #e0a84a;
+    --series:      #8b72ff;
+    --series-soft: #2a2350;
+    --div-pos:     #2dd4bf;
+    --div-neg:     #ff6f61;
+    --grid:        #1f1b36;
+    --axis:        #352f5a;
+    --page-glow:   radial-gradient(900px 520px at 50% -60px, rgba(124,92,255,.14), transparent 70%);
+    --glow:        0 6px 20px -8px rgba(109,79,245,.6);
+    --scrim:       rgba(5,3,16,.66);
+    --shadow-sm: 0 1px 2px rgba(3,2,12,.45);
+    --shadow-md: 0 6px 24px -8px rgba(3,2,12,.7), 0 1px 2px rgba(3,2,12,.45);
+    --shadow-lg: 0 24px 64px -20px rgba(3,2,12,.85);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --page:        #0b0d12;
-  --surface:     #161a21;
-  --surface-2:   #1c212a;
-  --surface-3:   #232935;
-  --border:      #2a3140;
-  --border-firm: #3a4354;
-  --ink:         #edf0f6;
-  --ink-2:       #b2bac9;
-  --muted:       #838c9e;
-  --accent:      #6ba4ec;
-  --accent-ink:  #0b0d12;
-  --accent-soft: #18263c;
-  --accent-line: #2d4568;
-  --pos:         #3fbf63;
-  --neg:         #ef6a5c;
-  --pos-soft:    #14301c;
-  --neg-soft:    #35191a;
-  --gold:        #d9a441;
-  --series:      #5a9ae8;
-  --series-soft: #24344f;
-  --div-pos:     #5a9ae8;
-  --div-neg:     #ef6a5c;
-  --grid:        #242a35;
-  --axis:        #3a4354;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
-  --shadow-md: 0 6px 24px -8px rgba(0,0,0,.6), 0 1px 2px rgba(0,0,0,.4);
-  --shadow-lg: 0 24px 64px -20px rgba(0,0,0,.75);
+  --page:        #090717;   /* HexaNxt's own theme colour */
+  --surface:     #12101f;
+  --surface-2:   #17142a;
+  --surface-3:   #1e1a35;
+  --border:      #231f3c;
+  --border-firm: #352f5a;
+  --ink:         #f3f1ff;
+  --ink-2:       #b9b5d0;
+  --muted:       #8f8aab;
+  --accent:      #9a85ff;
+  --accent-ink:  #0d0a22;
+  --accent-soft: #1c1740;
+  --accent-line: #3a3170;
+  --accent-fill: #6d4ff5;
+  --accent-fill-ink: #ffffff;
+  --accent-2:    #2dd4bf;
+  --neg-ink:     #1a0806;
+  --pos:         #3ecf7a;
+  --neg:         #ff6f61;
+  --pos-soft:    #0f2a1d;
+  --neg-soft:    #36151b;
+  --gold:        #e0a84a;
+  --series:      #8b72ff;
+  --series-soft: #2a2350;
+  --div-pos:     #2dd4bf;
+  --div-neg:     #ff6f61;
+  --grid:        #1f1b36;
+  --axis:        #352f5a;
+  --page-glow:   radial-gradient(900px 520px at 50% -60px, rgba(124,92,255,.14), transparent 70%);
+  --glow:        0 6px 20px -8px rgba(109,79,245,.6);
+  --scrim:       rgba(5,3,16,.66);
+  --shadow-sm: 0 1px 2px rgba(3,2,12,.45);
+  --shadow-md: 0 6px 24px -8px rgba(3,2,12,.7), 0 1px 2px rgba(3,2,12,.45);
+  --shadow-lg: 0 24px 64px -20px rgba(3,2,12,.85);
   color-scheme: dark;
 }
 
@@ -116,7 +136,9 @@
 [hidden] { display: none !important; }
 body {
   margin: 0;
-  background: var(--page);
+  background-color: var(--page);
+  background-image: var(--page-glow);
+  background-repeat: no-repeat;
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 15px;
@@ -217,15 +239,16 @@ button { cursor: pointer; }
   display: inline-flex; align-items: center; gap: 7px; box-shadow: var(--shadow-sm);
   transition: background .12s, border-color .12s;
 }
-.btn:hover { background: var(--surface-2); border-color: var(--muted); }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.btn-primary:hover { background: var(--accent); filter: brightness(1.08); border-color: var(--accent); }
+.btn:hover { background: var(--surface-2); border-color: var(--accent-line); }
+.btn-primary { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-fill-ink); box-shadow: var(--glow); }
+.btn-primary:hover { background: var(--accent-fill); filter: brightness(1.1); border-color: var(--accent-fill); }
+.btn-primary:active { filter: brightness(.94); }
 .btn-ghost { border-color: transparent; box-shadow: none; background: none; color: var(--ink-2); }
 .btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
 .btn-sm { padding: 5px 10px; font-size: 12.5px; }
 .btn-danger { color: var(--neg); border-color: var(--border); }
 .btn-danger:hover { background: var(--neg-soft); border-color: var(--neg); }
-.btn-destructive { background: var(--neg); border-color: var(--neg); color: var(--accent-ink); font-weight: 600; }
+.btn-destructive { background: var(--neg); border-color: var(--neg); color: var(--neg-ink); font-weight: 600; }
 .btn-destructive:hover { background: var(--neg); border-color: var(--neg); filter: brightness(1.08); }
 .confirm-text { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--ink-2); white-space: pre-line; }
 .confirm-text strong { color: var(--ink); }
@@ -394,7 +417,7 @@ input.err { border-color: var(--neg); }
 
 /* modal */
 .scrim {
-  position: fixed; inset: 0; background: rgba(10,13,20,.55); backdrop-filter: blur(2px);
+  position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(2px);
   display: grid; place-items: center; padding: 16px; z-index: 300;
 }
 .modal {
@@ -431,7 +454,7 @@ input.err { border-color: var(--neg); }
 .cp-row .nm { font-weight: 500; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-row .ph { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
 .cp-row .tick { width: 22px; height: 22px; border-radius: 50%; border: 1.6px solid var(--border-firm); flex: none; display: grid; place-items: center; color: transparent; font-size: 13px; }
-.cp-row.on .tick { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.cp-row.on .tick { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-fill-ink); }
 .cp-row.on .avatar { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
 .cp-row.in { cursor: default; opacity: .6; }
 .cp-row.in:hover { background: none; }
@@ -483,13 +506,13 @@ input.err { border-color: var(--neg); }
 
 /* ---------- passcode lock ---------- */
 .lock {
-  position: fixed; inset: 0; z-index: 600; background: var(--page);
+  position: fixed; inset: 0; z-index: 600; background-color: var(--page); background-image: var(--page-glow); background-repeat: no-repeat;
   display: grid; place-items: center; padding: 24px 16px;
   padding-top: calc(24px + env(safe-area-inset-top));
 }
 .lock-card { width: min(360px, 100%); text-align: center; }
 .lock-mark {
-  width: 52px; height: 52px; border-radius: 14px; background: var(--accent);
+  width: 52px; height: 52px; border-radius: 14px; background: var(--accent-fill);
   display: grid; place-items: center; margin: 0 auto 18px;
 }
 /* The welcome screen shows the brand mark, on the dark ground it was drawn
@@ -560,7 +583,7 @@ input.err { border-color: var(--neg); }
 .memberline .mi { flex: 1; min-width: 0; }
 .memberline .mi .nm { font-weight: 500; font-size: 14px; }
 .memberline .mi .ph { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
-.tagme { font-size: 11px; color: var(--accent); font-weight: 600; }
+.tagme { font-size: 11px; color: var(--accent-2); font-weight: 600; }
 
 /* contact picker */
 .memberrow { display: flex; gap: 8px; align-items: stretch; }
@@ -577,7 +600,7 @@ input.err { border-color: var(--neg); }
   position: fixed; left: 272px; right: 0; bottom: 0; z-index: 200;
   display: flex; align-items: stretch;
   background: var(--surface); border-top: 1px solid var(--border);
-  box-shadow: 0 -6px 20px -14px rgba(10,13,20,.45);
+  box-shadow: var(--shadow-md);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .bnav button {
@@ -590,7 +613,7 @@ input.err { border-color: var(--neg); }
 .bnav .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bnav button:hover { color: var(--ink-2); }
 .bnav button[aria-current="page"] { color: var(--accent); font-weight: 650; }
-.bnav button[aria-current="page"] .ico { background: var(--accent-soft); }
+.bnav button[aria-current="page"] .ico { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
 /* the last card or button is never hidden behind the bar */
 .wrap { padding-bottom: calc(var(--bnav-h) + 8px + env(safe-area-inset-bottom)); }
 .toast { bottom: calc(var(--bnav-h) + 14px + env(safe-area-inset-bottom)); }
@@ -3418,7 +3441,7 @@ function prettyPhone(e164) {
    build script so it cannot quietly drift. Shown in the connection check, next
    to the server's own build, because "is the server actually running what I
    pushed?" is otherwise unanswerable from a phone. */
-const APP_VERSION = "3.13";
+const APP_VERSION = "3.14";
 
 function myIdentity() { return LS.get("sl.identity", null); }
 function myPhone() { const i = myIdentity(); return i ? i.mobile : null; }

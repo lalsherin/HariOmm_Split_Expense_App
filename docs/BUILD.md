@@ -112,6 +112,53 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 3.14 (versionCode 28)
+
+**Colours aligned with HexaNxt.** This is a theme change only: the Split Buddy
+name and logo, the layouts, the navigation and all logic are untouched.
+
+The app already kept every theme colour in CSS variables (a light set and a
+dark set), so the work was mostly new values plus a few new tokens.
+
+| | old (dark) | new (dark) |
+|---|---|---|
+| page | #0b0d12 | **#090717**, HexaNxt's own theme colour, with a very faint violet glow at the top (`--page-glow`) |
+| cards / surfaces | #161a21 / #1c212a / #232935 | #12101f / #17142a / #1e1a35 deep navy-indigo |
+| borders | #2a3140 / #3a4354 | #231f3c / #352f5a subtle indigo |
+| text | #edf0f6 / #b2bac9 / #838c9e | #f3f1ff / #b9b5d0 / #8f8aab |
+| accent: text, active, focus | #6ba4ec blue | **#9a85ff violet** |
+| primary buttons | blue fill, dark text | **#6d4ff5 violet fill, white text**, soft violet glow (`--accent-fill`, `--glow`) |
+| secondary accent | none | **#2dd4bf teal** (`--accent-2`), sparingly: the "you" tag, the "owed by the group" bars |
+| owed to you / you owe | #3fbf63 / #ef6a5c | #3ecf7a green / #ff6f61 coral-red, still green and red |
+
+The light theme takes the same violet (#5b3fd6) and teal (#0b7a6c) on light
+surfaces, so the theme toggle still works.
+
+New tokens:
+- `--accent-fill` and `--accent-fill-ink`: violet buttons, the selected-
+  contact tick, the passcode badge;
+- `--accent-2`: teal;
+- `--neg-ink`: text on a red button. White on coral would fail contrast, so in
+  dark it is near-black;
+- `--page-glow`, `--glow`, `--scrim`.
+The two hard-coded overlay shades now use `--scrim` and `--shadow-md`.
+
+Android: `window_bg`, the status bar and the navigation bar are #090717, so
+the app opens dark instead of flashing grey. The server's `/join` invite page
+uses the same palette.
+
+Contrast (WCAG), dark:
+- body text 17.9:1, secondary 10.0, muted 5.7 (5.1 on the lightest surface);
+- violet text 6.8, white on violet buttons 5.1;
+- green 9.3, coral 6.9.
+Light: muted 4.9, violet 6.7.
+
+Checked by screenshots, light and dark: every main screen, the drawer,
+Account, Add expense, New group, contacts, Share, Select group, the delete
+confirmation and the passcode screen. The logo images are byte-identical,
+the launcher icons untouched, and "Split Buddy" appears exactly as often as
+before. All test suites pass.
+
 ### 3.13 (versionCode 27)
 
 **Home: no sync row; Add expense asks which group.**
