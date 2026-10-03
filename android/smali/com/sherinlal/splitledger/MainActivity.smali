@@ -21,6 +21,11 @@
 
 .field private w:Landroid/webkit/WebView;
 
+# What run() should do once the contacts permission has been settled:
+# 0 = open Android's single-contact picker (pickContact), 1 = tell the page the
+# address book can be read now, for its own multi-select picker (askContacts).
+.field private mode:I
+
 # Contact id of the row the picker returned. A field rather than a local
 # because onActivityResult is already using all sixteen registers it is allowed.
 .field private cid:Ljava/lang/String;
@@ -66,7 +71,7 @@
     invoke-virtual {v0, v2}, Landroid/webkit/WebView;->setFitsSystemWindows(Z)V
 
     # the page's only route to native code; @JavascriptInterface gates it to
-    # the single annotated method below
+    # the annotated methods below (pickContact, askContacts, contacts)
     const-string v1, "AndroidBridge"
 
     invoke-virtual {v0, p0, v1}, Landroid/webkit/WebView;->addJavascriptInterface(Ljava/lang/Object;Ljava/lang/String;)V
@@ -84,11 +89,89 @@
 # Called from the WebView's binder thread. Hop to the UI thread to start the
 # picker.
 .method public pickContact()V
-    .registers 1
+    .registers 2
     .annotation runtime Landroid/webkit/JavascriptInterface;
     .end annotation
 
+    const/4 v0, 0x0
+
+    iput v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
+
     invoke-virtual {p0, p0}, Lcom/sherinlal/splitledger/MainActivity;->runOnUiThread(Ljava/lang/Runnable;)V
+
+    return-void
+.end method
+
+
+# The multi-select picker's way in: settle the contacts permission exactly as
+# pickContact does (asked now, on tap, never at launch), then call the page's
+# window.__contactsReady(), which reads the list with contacts() below.
+.method public askContacts()V
+    .registers 2
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    const/4 v0, 0x1
+
+    iput v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
+
+    invoke-virtual {p0, p0}, Lcom/sherinlal/splitledger/MainActivity;->runOnUiThread(Ljava/lang/Runnable;)V
+
+    return-void
+.end method
+
+
+# The address book as text (see Contacts.list), or "!" without permission.
+# Anything at all going wrong in there -- including the Contacts class itself
+# failing to load -- comes back as "?", and the page offers the one-at-a-time
+# picker instead. It must never take the app down.
+.method public contacts()Ljava/lang/String;
+    .registers 2
+    .annotation runtime Landroid/webkit/JavascriptInterface;
+    .end annotation
+
+    :try_start_0
+    invoke-static {p0}, Lcom/sherinlal/splitledger/Contacts;->list(Landroid/content/Context;)Ljava/lang/String;
+    move-result-object v0
+    :try_end_0
+    .catch Ljava/lang/Throwable; {:try_start_0 .. :try_end_0} :catch_0
+
+    return-object v0
+
+    :catch_0
+    move-exception v0
+
+    const-string v0, "?"
+
+    return-object v0
+.end method
+
+
+# Permission settled (granted or not): do what was asked for.
+.method private proceed()V
+    .registers 4
+
+    iget v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
+
+    if-eqz v0, :pick
+
+    const/4 v0, 0x0
+
+    iput v0, p0, Lcom/sherinlal/splitledger/MainActivity;->mode:I
+
+    iget-object v1, p0, Lcom/sherinlal/splitledger/MainActivity;->w:Landroid/webkit/WebView;
+
+    if-eqz v1, :done
+
+    const-string v2, "javascript:if(window.__contactsReady)window.__contactsReady()"
+
+    invoke-virtual {v1, v2}, Landroid/webkit/WebView;->loadUrl(Ljava/lang/String;)V
+
+    :done
+    return-void
+
+    :pick
+    invoke-direct {p0}, Lcom/sherinlal/splitledger/MainActivity;->startPicker()V
 
     return-void
 .end method
@@ -127,7 +210,7 @@
     return-void
 
     :cond_have
-    invoke-direct {p0}, Lcom/sherinlal/splitledger/MainActivity;->startPicker()V
+    invoke-direct {p0}, Lcom/sherinlal/splitledger/MainActivity;->proceed()V
 
     return-void
 .end method
@@ -147,7 +230,7 @@
     return-void
 
     :cond_ours
-    invoke-direct {p0}, Lcom/sherinlal/splitledger/MainActivity;->startPicker()V
+    invoke-direct {p0}, Lcom/sherinlal/splitledger/MainActivity;->proceed()V
 
     return-void
 .end method

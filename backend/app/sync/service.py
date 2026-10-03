@@ -19,7 +19,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Set
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
@@ -151,12 +151,18 @@ async def push(db: AsyncSession, user: User, changes) -> List[Dict[str, Any]]:
             continue
         if incoming_at < _aware(existing.updated_at):
             continue
+        # The number is the identity. If it changed, so did the person: the
+        # previous account must lose the group, even when nobody has signed
+        # up with the new number yet (it becomes a placeholder again, claimed
+        # at sign-in like any other).
+        if phone != existing.phone_e164:
+            existing.user_id = linked
+        elif linked:
+            existing.user_id = linked
         existing.name = m.name
         existing.phone_e164 = phone
         existing.role = m.role
         existing.deleted = m.deleted
-        if linked:
-            existing.user_id = linked
         existing.updated_at = incoming_at
         existing.seq = await next_seq(db)
 
@@ -237,9 +243,31 @@ async def pull(db: AsyncSession, user: User, since: int) -> Dict[str, Any]:
     hidden = list((await db.scalars(
         select(GroupHidden.group_id).where(GroupHidden.user_id == user.id)
     )).all())
+    # Every group this account may see right now, in full, on every pull.
+    #
+    # The rows below are a delta ("changed since N"), and a delta cannot say
+    # that something went away for *you*: once you are taken out of a group,
+    # nothing in it is sent to you any more, including the news. This list is
+    # the authoritative answer to "which groups am I in?" — straight from
+    # group_members and groups, never from anything the phone remembers — so
+    # a phone can drop a group it was removed from, and notice one it was
+    # (re-)added to whose rows are older than its cursor.
+    group_ids = sorted(allowed)
+    # Has this account been added to, or taken out of, any group since the
+    # phone last asked? Being taken out leaves nothing in the rows above for
+    # this account to see, so without this a waiting phone would sit out its
+    # whole hold before hearing it — and could miss it altogether if it was
+    # added back within that window.
+    mine_seq = int(await db.scalar(
+        select(func.max(GroupMember.seq)).where(GroupMember.user_id == user.id,
+                                                GroupMember.seq > since)) or 0)
+    membership_changed = mine_seq > 0
     if not allowed:
-        return {"seq": since, "groups": [], "members": [], "expenses": [],
-                "settlements": [], "hidden": hidden}
+        # The cursor moves past the change, so it is reported once, not on
+        # every request after.
+        return {"seq": max(since, mine_seq), "groups": [], "members": [], "expenses": [],
+                "settlements": [], "hidden": hidden, "group_ids": group_ids,
+                "membership_changed": membership_changed}
 
     groups = (await db.scalars(
         select(Group).where(Group.id.in_(allowed), Group.seq > since).order_by(Group.seq)
@@ -257,7 +285,7 @@ async def pull(db: AsyncSession, user: User, since: int) -> Dict[str, Any]:
         .order_by(Settlement.seq)
     )).all()
 
-    high = since
+    high = max(since, mine_seq)     # every row between is in this response
     for coll in (groups, members, expenses, settlements):
         for row in coll:
             high = max(high, int(row.seq or 0))
@@ -265,6 +293,8 @@ async def pull(db: AsyncSession, user: User, since: int) -> Dict[str, Any]:
     return {
         "seq": high,
         "hidden": hidden,
+        "group_ids": group_ids,
+        "membership_changed": membership_changed,
         "groups": [{
             "id": g.id, "name": g.name, "currency": g.currency,
             "created_by": g.created_by, "deleted": g.deleted,

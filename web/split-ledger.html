@@ -409,6 +409,41 @@ input.err { border-color: var(--neg); }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .hint { font-size: 12px; color: var(--muted); }
 
+/* contact picker: several people in one go */
+.cpick { height: min(86vh, 760px); }
+.cpick .modal-hd { gap: 8px; }
+.cpick .modal-bd { padding: 0; gap: 0; overflow: hidden; flex: 1; min-height: 0; }
+.cp-sel { display: flex; gap: 10px; overflow-x: auto; padding: 12px 16px 4px; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
+.cp-sel[hidden] { display: none; }
+.cp-chip { flex: none; width: 66px; display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; padding-bottom: 8px; }
+.cp-chip .avatar { width: 42px; height: 42px; font-size: 14px; background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.cp-chip .nm { font-size: 11.5px; max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.cp-chip .x { position: absolute; top: -4px; right: 4px; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border-firm);
+  background: var(--surface); color: var(--ink-2); font-size: 13px; line-height: 1; display: grid; place-items: center; padding: 0; cursor: pointer; }
+.cp-search { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.cp-search .search { min-width: 0; }
+.cp-list { overflow-y: auto; flex: 1; min-height: 0; padding: 4px 8px 12px; -webkit-overflow-scrolling: touch; }
+.cp-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 8px; border: 0; background: none; text-align: left;
+  border-radius: var(--r-md); cursor: pointer; color: inherit; font: inherit; }
+.cp-row:hover { background: var(--surface-2); }
+.cp-row .avatar { width: 36px; height: 36px; font-size: 13px; }
+.cp-row .mi { flex: 1; min-width: 0; }
+.cp-row .nm { font-weight: 500; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-row .ph { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+.cp-row .tick { width: 22px; height: 22px; border-radius: 50%; border: 1.6px solid var(--border-firm); flex: none; display: grid; place-items: center; color: transparent; font-size: 13px; }
+.cp-row.on .tick { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.cp-row.on .avatar { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.cp-row.in { cursor: default; opacity: .6; }
+.cp-row.in:hover { background: none; }
+.cp-row .tag { font-size: 11.5px; color: var(--muted); flex: none; }
+.cp-row[hidden], .cp-empty[hidden] { display: none; }
+.cp-empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: 13.5px; }
+.cp-count { padding: 6px 16px 0; font-size: 11.5px; color: var(--muted); letter-spacing: .02em; text-transform: uppercase; }
+@media (max-width: 780px) {
+  .scrim.contactsheet { padding: 0; place-items: stretch; }
+  .modal.cpick { position: fixed; inset: 0; width: auto; height: auto; max-height: none; border-radius: 0; border: 0; }
+}
+
 /* split editor */
 .split-list { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
 .split-row {
@@ -533,6 +568,73 @@ input.err { border-color: var(--neg); }
 .chip .ph { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
 .chip-col { display: flex; flex-direction: column; line-height: 1.25; text-align: left; }
 
+/* ---------- bottom navigation ----------
+   The five primary sections. Fixed to the bottom of the window, above the
+   content and below the drawer, dialogs, toasts and the lock screen. On a wide
+   screen it spans the main column only, beside the always-open rail. */
+:root { --bnav-h: 62px; }
+.bnav {
+  position: fixed; left: 272px; right: 0; bottom: 0; z-index: 200;
+  display: flex; align-items: stretch;
+  background: var(--surface); border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 20px -14px rgba(10,13,20,.45);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.bnav button {
+  flex: 1 1 0; min-width: 0; border: 0; background: none; color: var(--muted);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 7px 2px 8px; min-height: var(--bnav-h); font-size: 11.5px; font-weight: 500; letter-spacing: .01em;
+}
+.bnav .ico { width: 46px; height: 28px; border-radius: 999px; display: grid; place-items: center; transition: background .15s; }
+.bnav .ico svg { width: 20px; height: 20px; }
+.bnav .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bnav button:hover { color: var(--ink-2); }
+.bnav button[aria-current="page"] { color: var(--accent); font-weight: 650; }
+.bnav button[aria-current="page"] .ico { background: var(--accent-soft); }
+/* the last card or button is never hidden behind the bar */
+.wrap { padding-bottom: calc(var(--bnav-h) + 8px + env(safe-area-inset-bottom)); }
+.toast { bottom: calc(var(--bnav-h) + 14px + env(safe-area-inset-bottom)); }
+
+/* home and groups list */
+.home { display: flex; flex-direction: column; gap: 18px; }
+.home-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.home-status .btn { margin-left: auto; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 12px 14px; box-shadow: var(--shadow-sm); min-width: 0;
+}
+.tile .k { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.tile .v { font-family: var(--font-mono); font-size: 19px; font-weight: 600; margin-top: 4px; overflow-wrap: anywhere; line-height: 1.25; }
+.tile .v + .v { font-size: 14px; margin-top: 2px; }
+.sec-hd { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.sec-hd h3 { margin: 0; font-family: var(--font-display); font-size: 17px; letter-spacing: -.01em; }
+.linkbtn { border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 13.5px; padding: 4px 2px; }
+.gcards { display: flex; flex-direction: column; gap: 10px; }
+.gcard {
+  display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm); min-width: 0;
+}
+.gcard .open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; border: 0; background: none; padding: 0; text-align: left; color: inherit; }
+.gcard .gico {
+  width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14px; border: 1px solid var(--accent-line);
+}
+.gcard .gi { flex: 1; min-width: 0; }
+.gcard .gn { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gcard .gs { font-size: 12.5px; color: var(--muted); }
+.gcard .gnet { font-family: var(--font-mono); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.gcard .add {
+  flex: none; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--border-firm);
+  background: var(--surface-2); color: var(--accent); display: grid; place-items: center; padding: 0;
+}
+.quick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.quick .btn { justify-content: center; padding: 12px; }
+.btn-dashed { border-style: dashed; border-color: var(--accent-line); color: var(--accent); background: none; }
+.switchgrp { border: 0; background: none; color: var(--accent); font-size: 13px; font-weight: 600; padding: 0; }
+.backbtn { flex: none; }
+
 /* ---------- responsive ---------- */
 /* ---------- never wider than the screen ----------
    A phone set to a larger display size reports a NARROWER css viewport — 412dp
@@ -550,6 +652,8 @@ input.err { border-color: var(--neg); }
   .cols, .chart-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 780px) {
+  .bnav { left: 0; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .shell { grid-template-columns: 1fr; }
   .rail {
     position: fixed; inset: 0 auto 0 0; width: 268px; z-index: 250; height: 100vh;
@@ -585,9 +689,17 @@ input.err { border-color: var(--neg); }
   .settle-row .mono { margin-left: auto; }
   .card-hd { gap: 8px; }
   .modal { width: 100%; }
+  .bnav button { font-size: 10.5px; }
+  .bnav .ico { width: 40px; }
+  .tile .v { font-size: 16px; }
   /* four tabs across a 320px phone rather than a strip you have to drag */
   .tab { padding: 9px 6px 11px; font-size: 13px; }
   .tabs { gap: 0; }
+}
+/* the narrowest phones, or the largest display-size setting: 56px a tab */
+@media (max-width: 340px) {
+  .bnav button { font-size: 10px; padding-left: 0; padding-right: 0; letter-spacing: 0; }
+  .bnav .ico { width: 36px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -632,6 +744,9 @@ input.err { border-color: var(--neg); }
         <button class="btn btn-sm railbtn" id="railBtn" aria-label="Show groups">
           <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>
         </button>
+        <button class="btn btn-sm backbtn" id="detailBack" aria-label="Back to all groups" title="All groups" hidden>
+          <svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg>
+        </button>
         <div class="gtitle">
           <h2 id="groupName">Split Buddy</h2>
           <div class="sub" id="groupSub"></div>
@@ -642,6 +757,7 @@ input.err { border-color: var(--neg); }
     </header>
     <div class="content"><div class="wrap" id="view"></div></div>
   </main>
+  <nav class="bnav" id="bnav" aria-label="Main"></nav>
 </div>
 
 <div class="lock" id="authScreen" hidden>
@@ -911,6 +1027,8 @@ const S = {
   groups: [], gid: null, group: null,
   expenses: [], settlements: [],
   tab: "balances", simplify: true,
+  // Which bottom-bar section is showing, and whether Groups has a group open.
+  section: "home", groupOpen: false, navTab: false, navDetail: false,
   q: "", fcat: "", fmem: "",
   unsub: []
 };
@@ -922,17 +1040,18 @@ const LS = {
 const meKey = gid => "sl.me." + gid;
 /** Which member row in this group is me. Once you have signed in with a
  *  number, the row carrying that number is you — no need to be asked. */
-const myId = () => {
-  if (!S.group) return null;
-  const stored = LS.get(meKey(S.group.id), null);
+const myIdIn = (g) => {
+  if (!g) return null;
+  const stored = LS.get(meKey(g.id), null);
   if (stored) return stored;
   const mine = myPhone();
   if (mine) {
-    const m = (S.group.members || []).find(x => !x.deleted && x.phone === mine);
-    if (m) { LS.set(meKey(S.group.id), m.id); return m.id; }
+    const m = (g.members || []).find(x => !x.deleted && x.phone === mine);
+    if (m) { LS.set(meKey(g.id), m.id); return m.id; }
   }
   return null;
 };
+const myId = () => myIdIn(S.group);
 const meMember = () => { const id = myId(); return S.group ? (S.group.members || []).find(m => m.id === id) || null : null; };
 
 function toast(msg) {
@@ -1134,18 +1253,271 @@ function groupNetFor(g) {
    ========================================================== */
 function render() {
   renderRail();
+  renderNav();
+  // A group that has gone (deleted, removed, hidden) cannot stay open.
+  if (S.groupOpen && !S.group) S.groupOpen = false;
   renderTop();
   const v = $("#view");
   v.innerHTML = "";
   if (!S.ready && S.db) { v.appendChild(el("div", { class: "empty", html: "<p>Loading your ledger…</p>" })); return; }
+  if (S.section === "home") { renderHome(v); return; }
+  if (S.section === "groups" && !S.groupOpen) { renderGroupsList(v); return; }
+  if (S.section === "balances" && liveGroups().length > 1) renderAcrossGroups(v);
   if (!S.group) { v.appendChild(emptyNoGroup()); return; }
   if (!myId()) { v.appendChild(whoAreYouCard()); }
   if (S.offline) v.appendChild(el("div", { class: "banner warn", html: "<strong>Working offline.</strong>&nbsp;Shared storage isn’t available in this view, so changes stay in this browser only." }));
-  if (S.tab === "balances") renderBalances(v);
-  else if (S.tab === "expenses") renderExpenses(v);
-  else if (S.tab === "insights") renderInsights(v);
+  const tab = sectionTab();
+  if (tab === "balances") renderBalances(v);
+  else if (tab === "expenses") renderExpenses(v);
+  else if (tab === "insights") renderInsights(v);
   else renderActivity(v);
 }
+
+/* ==========================================================
+   5a. Bottom navigation
+   ==========================================================
+   Five primary sections. Each is a view of data the app already holds — no
+   section has its own store, and switching never fetches anything:
+
+     home       dashboard across all your groups (renderHome)
+     groups     the list of groups; opening one shows the full group view with
+                its four tabs (Balances, Expenses, Insights, Activity)
+     analytics  renderInsights  for the selected group
+     bills      renderExpenses  for the selected group
+     balances   renderBalances  for the selected group, after a summary of
+                your position in every group
+
+   "The selected group" is the same S.gid the drawer has always set; the
+   drawer is still how you switch it from Analytics, Bills and Balances.
+
+   Back (phone build): leaving Home pushes one history entry, and opening a
+   group from the list pushes another, through the same pushBack/releaseBack
+   that dialogs and the drawer use. So Back goes group → Groups list → Home,
+   and only then out of the app. */
+const NAV = [
+  { id: "home", label: "Home", d: "M2.5 7.2L8 2.6l5.5 4.6M4 6v7.4h3V10h2v3.4h3V6" },
+  { id: "groups", label: "Groups", d: "M10.5 13.5v-1a2.5 2.5 0 0 0-2.5-2.5H4.5A2.5 2.5 0 0 0 2 12.5v1M6.25 7.5a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5M14 13.5v-1a2.5 2.5 0 0 0-1.9-2.42M10.5 3.1a2.25 2.25 0 0 1 0 4.3" },
+  { id: "analytics", label: "Analytics", d: "M2.5 13.5h11M4.5 11V7.5M8 11V3.5M11.5 11V6" },
+  { id: "bills", label: "Bills", d: "M3.5 2h9v12l-1.8-1.2L9 14l-1-1.2L7 14l-1.7-1.2L3.5 14V2zM6 5.5h4M6 8h4M6 10.5h2.5" },
+  { id: "balances", label: "Balances", d: "M2 4.5h12v8H2zM2 7h12M10.5 10h1.5" }
+];
+const SECTION_TAB = { analytics: "insights", bills: "expenses", balances: "balances" };
+function sectionTab() { return S.section === "groups" ? S.tab : SECTION_TAB[S.section]; }
+
+function renderNav() {
+  const nav = $("#bnav");
+  if (!nav) return;
+  if (!nav.childElementCount) {
+    NAV.forEach(n => {
+      const b = el("button", { type: "button", "data-sec": n.id, onclick: () => go(n.id) });
+      const ico = el("span", { class: "ico", "aria-hidden": "true" }, [iconSvg(n.d)]);
+      b.appendChild(ico);
+      b.appendChild(el("span", { class: "lbl", text: n.label }));
+      nav.appendChild(b);
+    });
+  }
+  nav.querySelectorAll("button").forEach(b => {
+    const on = b.getAttribute("data-sec") === S.section;
+    if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
+}
+
+function navPush(key, closeFn) { if (typeof pushBack === "function") pushBack(key, closeFn); }
+function navRelease(key) { if (typeof releaseBack === "function") releaseBack(key); }
+
+/** History entry for "a group is open in Groups": Back closes it. */
+function holdDetail() {
+  if (S.navDetail) return;
+  S.navDetail = true;
+  navPush("navdetail", () => { S.navDetail = false; S.groupOpen = false; render(); });
+}
+function dropDetail() { if (S.navDetail) { S.navDetail = false; navRelease("navdetail"); } }
+
+function go(section) {
+  if (section === S.section) {
+    // Tapping the section you are in: Groups goes back to its list.
+    if (section === "groups" && S.groupOpen) { dropDetail(); S.groupOpen = false; render(); }
+    window.scrollTo(0, 0);
+    return;
+  }
+  if (S.section === "groups") dropDetail();          // its open group is kept for later
+  if (section === "home") {
+    if (S.navTab) { S.navTab = false; navRelease("navtab"); }
+  } else if (!S.navTab) {
+    S.navTab = true;
+    navPush("navtab", () => {
+      S.navTab = false; S.navDetail = false; S.section = "home"; render(); window.scrollTo(0, 0);
+    });
+  }
+  S.section = section;
+  if (section === "groups" && S.groupOpen) holdDetail();
+  render();
+  window.scrollTo(0, 0);
+}
+
+/** Open a group. From Home, the Groups list or the drawer this is the full
+ *  group view under Groups; from Analytics, Bills or Balances it switches
+ *  which group that section is showing, and stays there. */
+function openGroup(gid) {
+  selectGroup(gid);
+  if (SECTION_TAB[S.section]) return;
+  if (S.section !== "groups") go("groups");
+  S.groupOpen = true;
+  holdDetail();
+  render();
+  window.scrollTo(0, 0);
+}
+
+/* ---------- per-group figures for Home, Groups and Balances ----------
+ * The same filters as currentExpenses/currentSettlements and the same money
+ * functions (netBalances, splits) — just for a group other than the open one. */
+function expensesOf(gid) { return S.expenses.filter(e => e.gid === gid && !e.deleted); }
+function settlementsOf(gid) { return S.settlements.filter(x => x.gid === gid && !x.deleted); }
+function groupFigures(g) {
+  const exps = S.db && g.id === S.gid ? currentExpenses() : expensesOf(g.id);
+  const setts = S.db && g.id === S.gid ? currentSettlements() : settlementsOf(g.id);
+  const me = myIdIn(g);
+  const net = me ? (netBalances(liveMembers(g), exps, setts)[me] || 0) : null;
+  const today = todayStr(), month = today.slice(0, 7);
+  let shareToday = 0, shareMonth = 0, total = 0, last = "";
+  exps.forEach(e => {
+    total += e.amount;
+    if (String(e.date) > last) last = String(e.date);
+    if (!me) return;
+    const mine = (e.splits || {})[me] || 0;
+    if (String(e.date) === today) shareToday += mine;
+    if (String(e.date).slice(0, 7) === month) shareMonth += mine;
+  });
+  return { me, net, shareToday, shareMonth, total, count: exps.length, last: last || String(g.createdAt || "") };
+}
+
+/** One line per currency, so rupees and dollars are never added together. */
+function byCurrency(rows) {
+  const out = [];
+  rows.forEach(([cur, v]) => {
+    const r = out.find(x => x[0] === cur);
+    if (r) r[1] += v; else out.push([cur, v]);
+  });
+  return out.length ? out : [["INR", 0]];
+}
+
+function groupCard(g, f) {
+  const card = el("div", { class: "gcard" });
+  const open = el("button", { class: "open", type: "button", "aria-label": "Open " + g.name, onclick: () => openGroup(g.id) });
+  open.appendChild(el("span", { class: "gico", "aria-hidden": "true", text: initials(g.name) }));
+  const gi = el("span", { class: "gi" });
+  gi.appendChild(el("div", { class: "gn", text: g.name }));
+  const n = liveMembers(g).length;
+  gi.appendChild(el("div", { class: "gs", text: n + (n === 1 ? " member" : " members") + " · " + f.count + (f.count === 1 ? " expense" : " expenses") }));
+  open.appendChild(gi);
+  if (f.net) open.appendChild(el("span", {
+    class: "gnet " + (f.net > 0 ? "pos" : "neg"),
+    text: (f.net > 0 ? "+" : "−") + fmtShort(Math.abs(f.net), g.currency).replace("-", "")
+  }));
+  card.appendChild(open);
+  card.appendChild(el("button", {
+    class: "add", type: "button", title: "Add an expense to " + g.name, "aria-label": "Add an expense to " + g.name,
+    onclick: () => { selectGroup(g.id); openExpenseModal(null); }
+  }, [iconSvg("M8 3v10M3 8h10")]));
+  return card;
+}
+
+function syncLine() {
+  const map = {
+    ok: ["ok", "Synced"], busy: ["busy", "Syncing…"], offline: ["off", "Offline — saved here"],
+    err: ["err", SYNC.error || "Sync problem"], local: ["off", "This phone only"], off: ["off", "Not signed in"]
+  };
+  const [cls, label] = map[SYNC.state] || map.off;
+  const row = el("div", { class: "home-status", id: "homeStatus" });
+  row.appendChild(el("span", { class: "syncdot " + cls }));
+  row.appendChild(el("span", { text: label }));
+  row.appendChild(el("button", { class: "btn btn-sm btn-ghost", type: "button", text: "Account", onclick: openAccountModal }));
+  return row;
+}
+
+function renderHome(v) {
+  const groups = liveGroups();
+  const home = el("div", { class: "home" });
+  if (SYNC_ENABLED) home.appendChild(syncLine());
+  if (!groups.length) { home.appendChild(emptyNoGroup()); v.appendChild(home); return; }
+
+  const figs = groups.map(g => [g, groupFigures(g)]);
+  const tiles = el("div", { class: "tiles" });
+  const tile = (k, rows, cls) => {
+    const t = el("div", { class: "tile" });
+    t.appendChild(el("div", { class: "k", text: k }));
+    byCurrency(rows).forEach(([cur, val]) =>
+      t.appendChild(el("div", { class: "v " + (val ? cls : "zero"), text: fmt(val, cur) })));
+    tiles.appendChild(t);
+  };
+  tile("Today", figs.map(([g, f]) => [g.currency, f.shareToday]), "");
+  tile("This month", figs.map(([g, f]) => [g.currency, f.shareMonth]), "");
+  tile("Owed to you", figs.map(([g, f]) => [g.currency, f.net > 0 ? f.net : 0]), "pos");
+  tile("You owe", figs.map(([g, f]) => [g.currency, f.net < 0 ? -f.net : 0]), "neg");
+  home.appendChild(tiles);
+  home.appendChild(el("div", { class: "hint", style: "margin-top:-10px",
+    text: "Today and This month are your share of expenses. Owed and owe are across all your groups." }));
+
+  const hd = el("div", { class: "sec-hd" });
+  hd.appendChild(el("h3", { text: "Recent groups" }));
+  if (groups.length > 3) hd.appendChild(el("button", { class: "linkbtn", type: "button", text: "See all", onclick: () => go("groups") }));
+  home.appendChild(hd);
+  const cards = el("div", { class: "gcards" });
+  figs.slice().sort((a, b) => String(b[1].last).localeCompare(String(a[1].last))).slice(0, 3)
+    .forEach(([g, f]) => cards.appendChild(groupCard(g, f)));
+  home.appendChild(cards);
+
+  const quick = el("div", { class: "quick" });
+  quick.appendChild(el("button", { class: "btn btn-dashed", type: "button", onclick: () => openGroupModal(null) },
+    [iconSvg("M8 3v10M3 8h10"), document.createTextNode("Create group")]));
+  quick.appendChild(el("button", {
+    class: "btn btn-primary", type: "button",
+    title: S.group ? "Add an expense to " + S.group.name : "",
+    onclick: () => { if (!S.group) selectGroup(groups[0].id); openExpenseModal(null); }
+  }, [iconSvg("M8 3v10M3 8h10"), document.createTextNode("Add expense")]));
+  home.appendChild(quick);
+  if (S.group) home.appendChild(el("div", { class: "hint", style: "margin-top:-10px;text-align:right",
+    text: "Adds to " + S.group.name + " — or tap + on any group." }));
+  v.appendChild(home);
+}
+
+function renderGroupsList(v) {
+  const groups = liveGroups();
+  if (!groups.length) { v.appendChild(emptyNoGroup()); return; }
+  const cards = el("div", { class: "gcards" });
+  groups.forEach(g => cards.appendChild(groupCard(g, groupFigures(g))));
+  v.appendChild(cards);
+}
+
+/** Balances: where you stand in every group, before the selected group's
+ *  full settle-up. Tapping a row switches the group shown below. */
+function renderAcrossGroups(v) {
+  const card = el("div", { class: "card", style: "margin-bottom:18px" });
+  const hd = el("div", { class: "card-hd" });
+  hd.appendChild(el("h3", { text: "Across your groups" }));
+  card.appendChild(hd);
+  const bd = el("div", { class: "card-bd" });
+  const list = el("div", { class: "ledger" });
+  liveGroups().forEach(g => {
+    const f = groupFigures(g);
+    const row = el("button", {
+      class: "lrow", type: "button", style: "width:100%;border-left:0;border-right:0;border-top:0;background:none;text-align:left;padding-left:0;padding-right:0",
+      "aria-current": g.id === S.gid ? "true" : "false", onclick: () => openGroup(g.id)
+    });
+    row.appendChild(el("span", { class: "who", text: g.name + (g.id === S.gid ? "  ·  showing" : "") }));
+    row.appendChild(el("span", { class: "rule" }));
+    row.appendChild(el("span", {
+      class: "amt " + (f.net > 0 ? "pos" : f.net < 0 ? "neg" : "zero"),
+      text: f.net == null ? "—" : f.net === 0 ? "settled" : (f.net > 0 ? "+" : "−") + fmt(Math.abs(f.net), g.currency)
+    }));
+    list.appendChild(row);
+  });
+  bd.appendChild(list);
+  card.appendChild(bd);
+  v.appendChild(card);
+}
+
+
 
 function renderRail() {
   const list = $("#groupList"); list.innerHTML = "";
@@ -1165,7 +1537,7 @@ function renderRail() {
     const row = el("div", { class: "gitem-row" + (g.id === S.gid ? " active" : "") });
     row.appendChild(el("button", {
       class: "gitem", "aria-current": g.id === S.gid ? "true" : "false",
-      onclick: () => selectGroup(g.id)
+      onclick: () => openGroup(g.id)
     }, [el("span", { class: "gn", text: g.name }), b]));
     const admin = iAmAdmin(g);
     row.appendChild(el("button", {
@@ -1238,7 +1610,45 @@ function renderTop() {
   const sub = $("#groupSub"); sub.innerHTML = "";
   const acts = $("#topActions"); acts.innerHTML = "";
   const tabsEl = $("#tabs"); tabsEl.innerHTML = "";
-  if (!g) return;
+  const detail = S.section === "groups" && S.groupOpen && !!g;
+  $("#detailBack").hidden = !detail;
+  tabsEl.hidden = !detail;
+
+  if (S.section === "home") {
+    $("#groupName").textContent = "Split Buddy";
+    const me = myIdentity();
+    sub.appendChild(el("span", { text: me && me.name ? "Hi " + me.name.split(" ")[0] : "Shared expenses, settled fairly" }));
+    return;
+  }
+  if (S.section === "groups" && !S.groupOpen) {
+    const n = liveGroups().length;
+    $("#groupName").textContent = "Groups";
+    sub.appendChild(el("span", { text: n ? n + (n === 1 ? " group" : " groups") : "No groups yet" }));
+    acts.appendChild(el("button", { class: "btn btn-primary", onclick: () => openGroupModal(null) }, [
+      iconSvg("M8 3v10M3 8h10"), document.createTextNode("New group")
+    ]));
+    return;
+  }
+  if (!g) {
+    $("#groupName").textContent = (NAV.find(n => n.id === S.section) || {}).label || "Split Buddy";
+    return;
+  }
+  if (!detail) {
+    // Analytics, Bills, Balances: the selected group, and a way to change it.
+    const label = (NAV.find(n => n.id === S.section) || {}).label;
+    sub.appendChild(el("span", { text: label }));
+    if (liveGroups().length > 1) {
+      sub.appendChild(el("span", { text: "·" }));
+      sub.appendChild(el("button", { class: "switchgrp", type: "button", text: "Change group", onclick: () => setRail(true) }));
+    }
+    if (S.section === "bills") acts.appendChild(el("button", { class: "btn btn-primary", onclick: () => openExpenseModal(null) }, [
+      iconSvg("M8 3v10M3 8h10"), document.createTextNode("Add expense")
+    ]));
+    if (S.section === "balances") acts.appendChild(el("button", { class: "btn", onclick: () => openSettleModal(null) }, [
+      iconSvg("M2 8h12M10 4l4 4-4 4"), document.createTextNode("Settle up")
+    ]));
+    return;
+  }
 
   const exps = currentExpenses();
   const total = exps.reduce((a, e) => a + e.amount, 0);
@@ -1286,6 +1696,21 @@ function iconSvg(d) {
 function emptyNoGroup() {
   const wrap = el("div", { class: "card" });
   const b = el("div", { class: "empty" });
+  /* Just signed in and the server has not answered yet. Saying "start your
+     first group" here tells someone who was added to a group weeks ago that
+     they were not — when the truth is only that a free host is still waking.
+     Groups you were added to, before or after installing, arrive with the
+     first answer. */
+  if (SYNC_ENABLED && myIdentity() && serverUrl() && LS.get("sl.awaitingFirstSync", false)) {
+    const off = SYNC.state === "offline" || SYNC.state === "err";
+    b.appendChild(el("h4", { text: off ? "Waiting for the server…" : "Finding your groups…" }));
+    b.appendChild(el("p", { text: off
+      ? "The server is not answering yet — on the free plan it can take up to a minute to wake. This keeps retrying on its own; any group you have been added to will appear here."
+      : "Checking which groups your number has been added to." }));
+    b.appendChild(el("button", { class: "btn", text: "Try now", onclick: () => syncNow(true) }));
+    wrap.appendChild(b);
+    return wrap;
+  }
   b.appendChild(el("h4", { text: "Start your first group" }));
   b.appendChild(el("p", { text: "A group is a trip, a flat, a dinner club — anywhere the same set of people keeps paying for each other. Add the people once and every expense splits itself from there." }));
   b.appendChild(el("button", { class: "btn btn-primary", text: "Create a group", onclick: () => openGroupModal(null) }));
@@ -1927,10 +2352,11 @@ function field(labelText, control, hint) {
 }
 
 /* ---------- contacts ----------
- * The phone build exposes one method that opens Android's own contact
- * picker. The app never reads the address book: the picker runs outside
- * it and hands back only the single person tapped, which is why no
- * contacts permission is needed. Absent in a browser — the button hides.
+ * pickContact() opens Android's own contact picker, which hands back the one
+ * person tapped. Since 3.10 it is the fallback: the group dialog normally uses
+ * the app's own multi-select sheet (openContactPicker, below). Both use the
+ * contacts permission, asked for when Contacts is tapped, never at launch.
+ * Absent in a browser — the button hides.
  */
 function contactsAvailable() {
   return !!(window.AndroidBridge && typeof window.AndroidBridge.pickContact === "function");
@@ -2035,6 +2461,228 @@ window.__contactPicked = function (nameEnc, phonesEnc) {
                   chosen => cb({ name: name || chosen, phone: chosen }));
 };
 
+/* ---------- choosing several contacts at once ----------
+ *
+ * Android's own picker (pickContact above) hands back one person and closes,
+ * so adding a group of ten meant opening it ten times. This is the app's own
+ * picker instead: the phone build reads the address book with the contacts
+ * permission it already asks for on this same tap (bridge methods askContacts
+ * and contacts), and the choosing happens here, any number at a time.
+ *
+ * Each person is identified by their number in E.164 — the same canonical form
+ * the server matches at sign-in — never by name, so two "John"s stay two people
+ * and one number can only be chosen once. Nothing is added until Done; Cancel
+ * or Back adds nothing. Everything chosen goes through the group dialog's own
+ * addMember(), so it lands exactly like a typed member and is still only a
+ * draft until the group is saved.
+ *
+ * Older builds without the new bridge methods, and phones where the list
+ * cannot be read, keep the one-at-a-time picker.
+ */
+function multiContactsAvailable() {
+  const b = window.AndroidBridge;
+  return !!(b && typeof b.askContacts === "function" && typeof b.contacts === "function");
+}
+let contactsWaiting = null;
+function requestContactList(cb) {
+  contactsWaiting = cb;
+  try { window.AndroidBridge.askContacts(); }
+  catch (e) { contactsWaiting = null; cb("?"); }
+}
+window.__contactsReady = function () {
+  const cb = contactsWaiting; contactsWaiting = null;
+  if (!cb) return;
+  let raw = "?";
+  try { raw = String(window.AndroidBridge.contacts()); } catch (e) { raw = "?"; }
+  cb(raw);
+};
+
+/** "name,number,contactId" rows → one entry per distinct number.
+ *  Numbers that cannot be made into a real mobile number are left out: a
+ *  member needs one, or the group can never reach them. */
+function parseContactList(raw) {
+  const byKey = new Map();
+  String(raw || "").split("\n").forEach(line => {
+    if (!line) return;
+    const f = line.split(",");
+    const name = decodeOne(f[0]).replace(/\s+/g, " ").trim();
+    const rawNum = decodeOne(f[1]).replace(/\s+/g, " ").trim();
+    const e164 = normalisePhone(rawNum, myCountryCode());
+    if (!e164) return;
+    const had = byKey.get(e164);
+    if (had) { if (!had.name && name) had.name = name; return; }   // same number saved twice
+    byKey.set(e164, { key: e164, name: name, phone: e164, cid: decodeOne(f[2] || "") });
+  });
+  const list = Array.from(byKey.values());
+  list.forEach(c => { c.label = c.name || prettyPhone(c.phone); });
+  // Names A–Z; contacts saved with no name after them, by number.
+  list.sort((a, b) => (!a.name - !b.name) || a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  return list;
+}
+
+/** The picker sheet. `opts`:
+ *    contacts   [{key, name, label, phone}]   — from parseContactList
+ *    problem    "!" (no permission) / "?" (could not read) — shown instead
+ *    inGroup    Set of E.164 numbers already in the group
+ *    onDone     (chosen[]) => void
+ *    onSingle   () => void   — fall back to the phone's own picker
+ */
+function openContactPicker(opts) {
+  const chosen = new Map();                 // key → contact, in the order picked
+  const rows = new Map();                   // key → its row element
+  const scrim = el("div", { class: "scrim contactsheet" });
+  let closed = false;
+  function close() {
+    if (closed) return;
+    closed = true;
+    scrim.remove();
+    document.removeEventListener("keydown", onKey);
+  }
+  function release() { if (typeof releaseBack === "function") releaseBack("contactsheet"); }
+  function cancel() { close(); release(); }
+  function onKey(ev) { if (ev.key === "Escape") cancel(); }
+
+  const box = el("div", { class: "modal cpick", role: "dialog", "aria-label": "Choose people" });
+  const head = el("div", { class: "modal-hd" });
+  head.appendChild(el("h3", { text: "Add people" }));
+  head.appendChild(el("button", { class: "btn btn-ghost", type: "button", text: "Cancel", onclick: cancel }));
+  const done = el("button", { class: "btn btn-primary", type: "button", text: "Done", disabled: "disabled" });
+  head.appendChild(done);
+  box.appendChild(head);
+
+  const body = el("div", { class: "modal-bd" });
+  box.appendChild(body);
+
+  if (opts.problem) {
+    const msg = opts.problem === "!"
+      ? "Split Buddy needs access to your contacts to list them here, so you can choose several people at once. Nothing is uploaded — only the people you add become group members."
+      : "Your contacts couldn't be read on this phone.";
+    const wrap = el("div", { class: "cp-empty" });
+    wrap.appendChild(el("p", { text: msg }));
+    wrap.appendChild(el("button", { class: "btn", type: "button", text: "Pick one contact instead",
+      onclick: () => { cancel(); opts.onSingle(); } }));
+    body.appendChild(wrap);
+  } else {
+    const strip = el("div", { class: "cp-sel", hidden: "hidden", "aria-label": "Selected" });
+    body.appendChild(strip);
+
+    const q = el("input", { type: "text", placeholder: "Search by name or number", autocomplete: "off",
+                            enterkeyhint: "search", "aria-label": "Search by name or number" });
+    const sw = el("div", { class: "search" });
+    sw.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2L14 14" stroke-linecap="round"/></svg>';
+    sw.appendChild(q);
+    body.appendChild(el("div", { class: "cp-search" }, [sw]));
+
+    const count = el("div", { class: "cp-count" });
+    body.appendChild(count);
+    const list = el("div", { class: "cp-list" });
+    body.appendChild(list);
+    const none = el("div", { class: "cp-empty", hidden: "hidden", text: "No contacts match." });
+
+    // Built once. Selecting and searching only touch classes and `hidden`,
+    // so a list of thousands stays quick and nothing is ever re-created.
+    const frag = document.createDocumentFragment();
+    opts.contacts.forEach(c => {
+      const isIn = opts.inGroup.has(c.phone);
+      const row = el("button", { class: "cp-row" + (isIn ? " in" : ""), type: "button" });
+      row.dataset.key = c.key;
+      row.dataset.hay = (c.name.toLowerCase() + " " + c.phone.replace(/\D/g, ""));
+      row.appendChild(el("span", { class: "avatar", text: initials(c.label) }));
+      const mi = el("span", { class: "mi" });
+      mi.appendChild(el("div", { class: "nm", text: c.label }));
+      mi.appendChild(el("div", { class: "ph", text: c.name ? prettyPhone(c.phone) : "no name saved" }));
+      row.appendChild(mi);
+      if (isIn) {
+        row.disabled = true;
+        row.appendChild(el("span", { class: "tag", text: "In group" }));
+      } else {
+        row.setAttribute("aria-pressed", "false");
+        row.appendChild(el("span", { class: "tick", text: "✓" }));
+      }
+      rows.set(c.key, row);
+      frag.appendChild(row);
+    });
+    list.appendChild(frag);
+    list.appendChild(none);
+    if (!opts.contacts.length) { none.hidden = false; none.textContent = "No contacts with a mobile number on this phone."; }
+    count.textContent = opts.contacts.length + (opts.contacts.length === 1 ? " contact" : " contacts");
+
+    const byKey = new Map(opts.contacts.map(c => [c.key, c]));
+    function refresh() {
+      const n = chosen.size;
+      done.textContent = n ? "Done (" + n + ")" : "Done";
+      if (n) done.removeAttribute("disabled"); else done.setAttribute("disabled", "disabled");
+      strip.hidden = !n;
+    }
+    function chipFor(c) {
+      const chip = el("div", { class: "cp-chip" });
+      chip.dataset.key = c.key;
+      chip.appendChild(el("span", { class: "avatar", text: initials(c.label) }));
+      chip.appendChild(el("span", { class: "nm", text: c.label }));
+      chip.appendChild(el("button", { class: "x", type: "button", text: "×", "aria-label": "Remove " + c.label,
+        onclick: () => toggle(c.key) }));
+      return chip;
+    }
+    function toggle(key) {
+      const c = byKey.get(key), row = rows.get(key);
+      if (!c || !row || row.disabled) return;
+      if (chosen.has(key)) {
+        chosen.delete(key);
+        row.classList.remove("on"); row.setAttribute("aria-pressed", "false");
+        const chip = strip.querySelector('.cp-chip[data-key="' + CSS.escape(key) + '"]');
+        if (chip) chip.remove();
+      } else {
+        chosen.set(key, c);
+        row.classList.add("on"); row.setAttribute("aria-pressed", "true");
+        strip.appendChild(chipFor(c));
+        strip.scrollLeft = strip.scrollWidth;
+      }
+      refresh();
+    }
+    // One listener for the whole list, however long it is.
+    list.addEventListener("click", ev => {
+      const row = ev.target.closest(".cp-row");
+      if (row) toggle(row.dataset.key);
+    });
+
+    let pending = 0;
+    q.addEventListener("input", () => {
+      cancelAnimationFrame(pending);
+      pending = requestAnimationFrame(() => {
+        // Letters search the name, digits the number ("9786", "+91 97863"),
+        // both at once if both are typed. Hidden rows keep their selection.
+        const text = q.value.trim().toLowerCase();
+        const digits = text.replace(/\D/g, "");
+        const words = text.replace(/[\d+()\-.\s]+/g, " ").trim();
+        let shown = 0;
+        rows.forEach(row => {
+          const hay = row.dataset.hay;
+          const ok = (!words || hay.indexOf(words) >= 0) && (!digits || hay.indexOf(digits) >= 0);
+          row.hidden = !ok;
+          if (ok) shown++;
+        });
+        none.hidden = shown > 0 || !opts.contacts.length;
+        if (!shown && opts.contacts.length) none.textContent = "No contacts match “" + q.value.trim() + "”.";
+      });
+    });
+
+    done.addEventListener("click", () => {
+      if (!chosen.size) return;
+      const out = Array.from(chosen.values());
+      close(); release();
+      opts.onDone(out);
+    });
+    refresh();
+    setTimeout(() => { try { q.focus({ preventScroll: true }); } catch (e) { } }, 60);
+  }
+
+  scrim.appendChild(box);
+  scrim.addEventListener("click", ev => { if (ev.target === scrim) cancel(); });
+  document.body.appendChild(scrim);
+  document.addEventListener("keydown", onKey);
+  if (typeof pushBack === "function") pushBack("contactsheet", close);
+}
+
 /* ---------- group modal ---------- */
 function openGroupModal(existing) {
   const isNew = !existing;
@@ -2069,8 +2717,30 @@ function openGroupModal(existing) {
   const memAdd = el("button", { class: "btn", type: "button", text: "Add", onclick: () => addMember() });
   const memContacts = el("button", {
     class: "btn", type: "button", title: "Choose from your contacts",
-    onclick: () => pickFromContacts(c => addMember(c.name, c.phone))
+    onclick: () => chooseContacts()
   }, [iconSvg("M10.5 13.5v-1a2.5 2.5 0 0 0-2.5-2.5H4.5A2.5 2.5 0 0 0 2 12.5v1M6.25 7.5a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5M14 13.5v-1a2.5 2.5 0 0 0-1.9-2.42M10.5 3.1a2.25 2.25 0 0 1 0 4.3"), document.createTextNode("Contacts")]);
+
+  /** Several at once where the phone build can list contacts; otherwise the
+   *  phone's own picker, one person per opening, exactly as before. */
+  function chooseContacts() {
+    const single = () => pickFromContacts(c => addMember(c.name, c.phone));
+    if (!multiContactsAvailable()) { single(); return; }
+    requestContactList(raw => {
+      const problem = raw === "!" || raw === "?" ? raw : null;
+      openContactPicker({
+        contacts: problem ? [] : parseContactList(raw),
+        problem: problem,
+        inGroup: new Set(liveMembers(g).map(m => m.phone).filter(Boolean)),
+        onSingle: single,
+        onDone: picked => {
+          let added = 0;
+          picked.forEach(c => { if (addMember(c.name, c.phone)) added++; });
+          drawChips();
+          if (added) toast(added === 1 ? picked[0].label + " added" : added + " people added");
+        }
+      });
+    });
+  }
 
   function addMember(name, phoneRaw) {
     const typed = name === undefined;
@@ -2192,7 +2862,7 @@ function openGroupModal(existing) {
       if (isNew) g.createdAt = nowISO();
       await saveGroup(g);
       closeModal();
-      if (isNew) { S.groups.some(x => x.id === g.id) || S.groups.unshift(g); selectGroup(g.id); toast("Group created"); }
+      if (isNew) { S.groups.some(x => x.id === g.id) || S.groups.unshift(g); openGroup(g.id); toast("Group created"); }
       else { S.group = g; toast("Group updated"); render(); }
     }
   });
@@ -2529,7 +3199,7 @@ function prettyPhone(e164) {
    build script so it cannot quietly drift. Shown in the connection check, next
    to the server's own build, because "is the server actually running what I
    pushed?" is otherwise unanswerable from a phone. */
-const APP_VERSION = "3.8";
+const APP_VERSION = "3.11";
 
 function myIdentity() { return LS.get("sl.identity", null); }
 function myPhone() { const i = myIdentity(); return i ? i.mobile : null; }
@@ -2707,6 +3377,10 @@ function setSyncState(state, error) {
   if (state === "ok") SYNC.at = Date.now();
   const bar = $("#syncBar");
   if (bar) drawSyncBar();
+  const hs = document.getElementById("homeStatus");
+  if (hs && S.section === "home") hs.replaceWith(syncLine());
+  // The "finding your groups" card says whether the server is answering.
+  if (LS.get("sl.awaitingFirstSync", false) && !liveGroups().length) render();
 }
 function scheduleSync(ms) {
   if (!SYNC_ENABLED || !serverUrl() || !myIdentity()) return;
@@ -2806,6 +3480,30 @@ async function reauth() {
   } catch (e) { return false; }
 }
 
+/** A session for an identity that never got one: signed in while the server
+ *  could not be reached. Unlike reauth() this is not rate-limited — it is the
+ *  normal first-run path on a host that is waking up, and the sync backoff
+ *  already paces it. Throws "offline" while the server is unreachable, so the
+ *  caller shows Offline and retries, and "signed-out" only if the server
+ *  answers and refuses. */
+async function ensureSession() {
+  const id = myIdentity();
+  if (!id || !id.mobile) throw new Error("signed-out");
+  let d;
+  try {
+    d = await api("/auth/sign-in", {
+      mobile_number: id.mobile, name: id.name || "Member",
+      platform: "android", device_information: (navigator.userAgent || "").slice(0, 160)
+    }, { noAuth: true });
+  } catch (e) {
+    throw new Error(e && e.message === "offline" ? "offline" : "signed-out");
+  }
+  LS.set("sl.identity", {
+    mobile: d.user.mobile_number, name: d.user.name, userId: d.user.id,
+    accessToken: d.access_token, refreshToken: d.refresh_token
+  });
+}
+
 async function doRefresh() {
   const id = myIdentity();
   if (!id || !id.refreshToken) return false;
@@ -2878,8 +3576,34 @@ function buildPush() {
   return out;
 }
 
-function applyPull(data) {
+function applyPull(data, wasFull) {
   let changed = false;
+  const visible = Array.isArray(data.group_ids) ? new Set(data.group_ids) : null;
+  /* Added back to a group this phone had set aside. The server clears a
+     removal-from-view when the owner re-adds you (otherwise you would be a
+     member of a group you can never see), so if its list no longer has this
+     group, neither may ours — or the union below would send the old removal
+     straight back up and hide it again. */
+  // Worked out before any rows are applied: a group row arriving below also
+  // clears `revoked`, and the fact that we are back must not be lost with it.
+  const regained = visible ? S.groups.filter(g => g.revoked && visible.has(g.id)).map(g => g.id) : [];
+  /* A member row for *me* that this phone has never seen is me being added —
+     or added back, possibly so quickly after being removed that this phone
+     never heard about the removal. Either way the server has dropped any
+     earlier removal-from-view for that group, so this phone must too. Rows it
+     already knows (an ordinary full pull) prove nothing and are ignored. */
+  const me = myUserId();
+  const addedMe = (data.members || []).filter(r => me && r.user_id === me && !r.deleted && !S.groups.some(
+    g => g.id === r.group_id && (g.members || []).some(m => m.id === r.id))).map(r => r.group_id);
+  const rejoined = regained.concat(addedMe);
+  if (rejoined.length) {
+    const serverHidden = Array.isArray(data.hidden) ? data.hidden : [];
+    const back = rejoined.filter(id => serverHidden.indexOf(id) < 0);
+    if (back.length) {
+      LS.set("sl.hidden", hiddenGroupIds().filter(id => back.indexOf(id) < 0));
+      LS.set("sl.hiddenRefused", hiddenRefusedIds().filter(id => back.indexOf(id) < 0));
+    }
+  }
   /* Groups this account has removed from its own view.
    *
    * This merge is a UNION, and that is the whole point. It was previously
@@ -2968,6 +3692,46 @@ function applyPull(data) {
     s.date = row.settled_date; s.deleted = !!row.deleted; s.updatedAt = row.updated_at;
     changed = true;
   });
+
+  /* Membership, as the server sees it right now.
+   *
+   * The rows above are only what changed since this phone last asked, and
+   * that can never say "you were taken out of this group" — once you are out,
+   * nothing about the group is sent to you, the news included. So the server
+   * also sends the complete list of groups this account is in, and that list
+   * wins:
+   *
+   *   on this phone, not on the list   you were removed (or the group was
+   *                                    never yours — a different account
+   *                                    signed in here). Set aside.
+   *   on the list, not complete here   you were added, or added back, and
+   *                                    the group's history is older than this
+   *                                    phone's cursor. Ask for everything once.
+   *
+   * Groups made on this phone that have not reached the server yet are still
+   * queued, and are left alone. An older server sends no list; nothing here
+   * runs and the phone behaves exactly as before. */
+  if (visible) {
+    const queued = new Set(dirtySet().groups || []);
+    const gone = [];
+    // Back in a group: its history may be older than this phone's cursor.
+    let missing = regained.length > 0;
+    S.groups.forEach(g => {
+      if (g.sample || g.localOnly) return;
+      if (visible.has(g.id)) {
+        if (g.revoked) { g.revoked = false; missing = true; changed = true; }
+        return;
+      }
+      if (g.revoked || queued.has(g.id)) return;
+      if (!g.deleted && !isHidden(g.id)) gone.push(g.name || "a group");
+      g.revoked = true;
+      changed = true;
+    });
+    visible.forEach(id => { if (!S.groups.some(g => g.id === id)) missing = true; });
+    if (missing && !wasFull) SYNC.fullPull = true;
+    if (gone.length === 1) SYNC.note = "You're no longer in “" + gone[0] + "” — it has been removed from this phone";
+    else if (gone.length > 1) SYNC.note = "You're no longer in " + gone.length + " groups — they have been removed from this phone";
+  }
   return changed;
 }
 
@@ -3098,18 +3862,27 @@ async function syncNow(manual) {
     // First sync of this launch: ask for the lot and reconcile, rather than
     // trusting a counter this phone has been carrying around.
     const since = SYNC.fullPull ? 0 : syncSeq();
+    // Signed in while the server was unreachable (asleep, or no signal), so
+    // there is a number but no session yet. Get one first, quietly — this is
+    // the ordinary first run on a free host that sleeps, not a sign-out.
+    if (!(myIdentity() || {}).accessToken) await ensureSession();
     const data = await api("/sync", { since: since, changes: wire, wait: holdFor },
       holdFor ? { register: c => { SYNC.ctl = c; } } : undefined);
     SYNC.ctl = null;
     SYNC.fullPull = false;
     SYNC.fails = 0;
+    SYNC.note = null;
     const refusal = handleRejected(data.rejected, push);
-    const changed = applyPull(data) || refusal.changed;
+    const changed = applyPull(data, since === 0) || refusal.changed;
     LS.set("sl.syncSeq", data.seq || syncSeq());
+    // The first answer from the server after signing in: from here on an empty
+    // list really means "no groups", not "haven't asked yet".
+    if (LS.get("sl.awaitingFirstSync", false)) { LS.set("sl.awaitingFirstSync", false); render(); }
     const stillDirty = clearPushed(push);
     if (stillDirty) scheduleSync(800);       // edits made during the request
+    else if (SYNC.fullPull) scheduleSync(300);   // added (back) to a group: fetch its history
     localSave();
-    if (refusal.message) toast(refusal.message);
+    if (refusal.message || SYNC.note) toast(refusal.message || SYNC.note);
     setSyncState("ok");
     if (changed) {
       const current = liveGroups().find(g => g.id === S.gid);
@@ -3176,6 +3949,9 @@ async function signIn(mobile, name) {
   const base = serverUrl();
   const local = { mobile: mobile, name: name, userId: null, accessToken: null, refreshToken: null };
   if (!base) { LS.set("sl.identity", local); return { ok: true, offline: true }; }
+  adoptCacheFor(mobile);
+  // Until the server has answered once, an empty list means "not asked yet".
+  LS.set("sl.awaitingFirstSync", true);
   try {
     const d = await api("/auth/sign-in", {
       mobile_number: mobile, name: name,
@@ -3190,6 +3966,28 @@ async function signIn(mobile, name) {
     if (e.message === "offline") { LS.set("sl.identity", local); return { ok: true, offline: true }; }
     return { ok: false, error: e.message || "Could not sign in" };
   }
+}
+
+/** Whose groups this phone is holding.
+ *
+ *  What is stored here is a cache of what the server sent to one account. If a
+ *  different number signs in on the same phone, none of it is theirs, so it
+ *  goes — their own groups come from the server on the first sync. (The server
+ *  would refuse them the data anyway; this is about not showing what is
+ *  already on the screen.) The same number signing back in keeps everything. */
+function adoptCacheFor(mobile) {
+  const prev = LS.get("sl.cacheOwner", null) || ((myIdentity() || {}).mobile || null);
+  if (prev && prev !== mobile) {
+    S.groups = []; S.expenses = []; S.settlements = [];
+    S.gid = null; S.group = null;
+    localSave();
+    LS.set("sl.lastGroup", null);
+    LS.set("sl.hidden", []);
+    LS.set("sl.hiddenRefused", []);
+    LS.set("sl.syncSeq", 0);
+    LS.set("sl.dirty", { groups: [], expenses: [], settlements: [], hidden: [] });
+  }
+  LS.set("sl.cacheOwner", mobile);
 }
 
 async function signOut() {
@@ -3818,6 +4616,7 @@ $("#themeBtn").addEventListener("click", () => {
   LS.set("sl.theme", next);
 });
 $("#newGroupBtn").addEventListener("click", () => openGroupModal(null));
+$("#detailBack").addEventListener("click", () => go("groups"));
 $("#lockBtn").addEventListener("click", openLockSettings);
 $("#authGo").addEventListener("click", submitAuth);
 $("#authServer").addEventListener("click", openAccountModal);

@@ -18,10 +18,16 @@ class Phone:
         self.rejected = 0
 
     @classmethod
-    async def open(cls, browser, name, mobile):
+    async def open(cls, browser, name, mobile, init=None):
+        """Signed-in phone. `init` is extra script run before the page, e.g. a
+        stand-in for the Android bridge."""
         ctx = await browser.new_context(viewport={"width": 412, "height": 915})
         await ctx.add_init_script(
             f"try {{ localStorage.setItem('sl.server', JSON.stringify('{SERVER}')); }} catch(e) {{}}")
+        # an existing user who has already answered the passcode question
+        await ctx.add_init_script("try { localStorage.setItem('sl.lockSkipped', 'true'); } catch(e) {}")
+        if init:
+            await ctx.add_init_script(init)
         page = await ctx.new_page()
         p = cls(ctx, page, name, mobile)
         page.on("request", p._on_request)
@@ -32,6 +38,52 @@ class Phone:
         await p.reload()
         return p
 
+    @classmethod
+    async def install(cls, browser, name, typed_number, asleep_for=0):
+        """A brand-new install: empty storage, then sign in through the real
+        sign-in screen, exactly as a person would. With `asleep_for`, every
+        request to the server hangs for that many seconds first and then
+        fails, the way a sleeping free-tier host behaves until it is up."""
+        import asyncio, time
+        ctx = await browser.new_context(viewport={"width": 412, "height": 915})
+        await ctx.add_init_script(
+            f"try {{ localStorage.setItem('sl.server', JSON.stringify('{SERVER}')); }} catch(e) {{}}")
+        page = await ctx.new_page()
+        p = cls(ctx, page, name, typed_number)
+        page.on("request", p._on_request)
+        page.on("response", p._on_response)
+        if asleep_for:
+            awake_at = time.time() + asleep_for
+
+            async def sleepy(route):
+                left = awake_at - time.time()
+                if left > 0:
+                    await asyncio.sleep(min(left, 25))
+                    if time.time() < awake_at:
+                        return await route.abort()
+                await route.continue_()
+            await page.route(SERVER + "/**", sleepy)
+        await page.goto(APP)
+        await page.wait_for_timeout(600)
+        await p._watch_toasts()
+        assert await page.evaluate("localStorage.getItem('sl.groups')") in (None, "[]"), \
+            "not a fresh install"
+        await page.fill("#authPhone", typed_number)
+        await page.fill("#authName", name)
+        await page.click("#authGo")
+        return p
+
+    async def _watch_toasts(self):
+        await self.page.evaluate("""() => {
+          window.__toasts = [];
+          const t = document.getElementById("toast");
+          new MutationObserver(() => window.__toasts.push({t: Date.now(), m: t.textContent}))
+            .observe(t, {childList: true, characterData: true, subtree: true});
+        }""")
+
+    async def text(self):
+        return await self.page.evaluate("document.body.innerText")
+
     def _on_request(self, r):
         if r.url.endswith("/sync") and r.method == "POST":
             self.syncs += 1
@@ -39,7 +91,12 @@ class Phone:
     async def _on_response(self, r):
         if r.url.endswith("/sync") and r.request.method == "POST":
             try:
-                self.rejected += len((await r.json()).get("rejected") or [])
+                body = await r.json()
+                self.rejected += len(body.get("rejected") or [])
+                if os.environ.get("E2E_TRACE"):
+                    req = r.request.post_data_json or {}
+                    print(f"   [{self.name}] since={req.get('since')} pushed_hidden={req.get('changes', {}).get('hidden')} "
+                          f"-> ids={body.get('group_ids')} hidden={body.get('hidden')} groups={[g['id'] for g in body.get('groups', [])]}", flush=True)
             except Exception:
                 pass
 
@@ -52,12 +109,7 @@ class Phone:
     async def reload(self):
         await self.page.reload()
         await self.page.wait_for_timeout(800)
-        await self.page.evaluate("""() => {
-          window.__toasts = [];
-          const t = document.getElementById("toast");
-          new MutationObserver(() => window.__toasts.push({t: Date.now(), m: t.textContent}))
-            .observe(t, {childList: true, characterData: true, subtree: true});
-        }""")
+        await self._watch_toasts()
 
     async def toasts(self, needle="refused"):
         return [t for t in await self.page.evaluate("window.__toasts") if needle in t["m"]]

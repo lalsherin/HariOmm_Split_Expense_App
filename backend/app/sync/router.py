@@ -49,7 +49,8 @@ async def sync(
     await db.commit()
 
     def empty(d):
-        return not (d["groups"] or d["members"] or d["expenses"] or d["settlements"])
+        return not (d["groups"] or d["members"] or d["expenses"] or d["settlements"]
+                    or d.get("membership_changed"))
 
     # Nothing to report yet, and the phone said it is willing to wait: hold the
     # request open rather than hanging up and making it ask again in two
@@ -57,6 +58,7 @@ async def sync(
     # second after it is created.
     wait = max(0, min(int(body.wait or 0), MAX_WAIT))
     if wait and not rejected and empty(out):
+        visible = out["group_ids"]
         seen = await _global_seq(db)
         deadline = asyncio.get_event_loop().time() + wait
         while asyncio.get_event_loop().time() < deadline:
@@ -67,7 +69,9 @@ async def sync(
             seen = now
             out = await service.pull(db, user, body.since)
             await db.commit()
-            if not empty(out):
-                break                         # something for this account
+            if not empty(out) or out["group_ids"] != visible:
+                break                         # something for this account —
+                                              # or a group it lost or gained
 
+    out.pop("membership_changed", None)
     return SyncResponse(rejected=rejected, **out)

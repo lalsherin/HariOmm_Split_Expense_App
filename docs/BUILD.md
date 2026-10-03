@@ -112,6 +112,166 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 3.11 (versionCode 25)
+
+**A bottom navigation bar: Home, Groups, Analytics, Bills, Balances.**
+
+Before this, the app was one view: the selected group, with four tabs under its
+title, and a drawer for switching groups. The bar sits on top of that rather
+than replacing it, and every section is a view of data the app already held.
+No section has a store of its own, no money calculation changed, and switching
+tabs never fetches anything.
+
+- **Home** (new, the launch screen). Shows:
+  - sync status with Account;
+  - *Today* and *This month*, as your share of expenses;
+  - *Owed to you* and *You owe*, summed from each group's existing
+    `netBalances`, one line per currency;
+  - your three most recent groups, each with a **+** to add an expense;
+  - *Create group* and *Add expense*, which open the existing dialogs.
+- **Groups**: every group as a card. Opening one shows the full group view as
+  before, with its own Balances / Expenses / Insights / Activity tabs and a
+  back arrow. Groups stays highlighted while a group is open.
+- **Analytics / Bills / Balances**: the existing `renderInsights`,
+  `renderExpenses` and `renderBalances` for the selected group, with *Change
+  group* opening the drawer. Balances first shows *Across your groups*, your
+  position in each, from the same `netBalances`.
+- **Drawer**: unchanged. It is the group switcher, and it keeps New group,
+  Account/sync, passcode, backup and theme.
+- **Back** uses the existing pushBack/releaseBack history. Leaving Home adds
+  one entry and opening a group adds one more, so Back goes from an open group
+  to the Groups list, then to Home, then out of the app. Hopping between tabs
+  does not pile up entries, and a dialog still closes first.
+- The bar is fixed and full-width on a phone, and spans the main column beside
+  the rail on a wide screen. It pads for `safe-area-inset-bottom`; content
+  and toasts sit above it. Dialogs, the drawer and the lock screen cover it, so
+  a half-written expense can't be left by tapping a tab. The active tab is
+  marked by colour, a filled pill behind the icon, bolder text and
+  `aria-current="page"`.
+
+There are no unread counts anywhere in the app, so there is no badge.
+
+`myId()` became `myIdIn(group)` plus `myId = () => myIdIn(S.group)`: the same
+lookup, made usable for a group that is not the open one.
+
+Verified (`e2e/run.sh nav`, 8 scenarios on the phone page against a real
+server):
+- each tab on its own;
+- 47 switches with no duplicates, no page errors and no server calls;
+- list → group → another tab → back;
+- Back from an open group, from Groups, from a dialog and after tab-hopping;
+- the bar fixed while 30 expenses scroll, with the last row clear of it;
+- 412, 360, 320 and 280 px widths with no overlap, clipped labels or
+  sideways scroll, and 44px+ tap targets;
+- dialogs and the drawer covering the bar;
+- the drawer still switching groups.
+All earlier suites pass unchanged.
+
+### 3.10 (versionCode 24)
+
+**Choose several contacts at once.** Contacts used to open Android's own
+picker (`ACTION_PICK`), which by design returns one row and closes, so
+adding ten people meant opening it ten times. WebView has no web contact-picker
+API either. So the choosing now happens in the app's own sheet:
+
+- A strip of selected people at the top (avatar, name, ×), then
+  *Search by name or number*, then the list with a tick on each chosen row.
+  The top-right button reads **Done (n)** and is disabled at zero.
+- Each person is identified by their number in E.164, the same form the
+  server matches at sign-in. So two contacts called John stay two people, a
+  number saved under two contacts appears once, and numbers that are not
+  mobile numbers are not offered at all. People already in the group are shown
+  as *In group* and cannot be picked twice. Typed members and picked members
+  are de-duplicated against each other.
+- Searching and scrolling only show and hide rows; selection is held in one
+  map until Done. One click listener serves the whole list. With 3,000
+  contacts the sheet opens in about half a second and a search takes about a
+  tenth of one.
+- **Done** adds everyone through the group dialog's existing `addMember()`,
+  so they are drafts in the dialog like typed members, removable before
+  *Create group*, and reach the server through the ordinary sync. **Cancel**,
+  Back and tapping outside add nothing.
+
+Native side: no new permission. `READ_CONTACTS` was already declared and
+asked for on this same tap, to list a chosen contact's other numbers. The new
+bridge methods are `askContacts()` (settle the permission, then call the
+page's `__contactsReady`) and `contacts()` (the address book as
+percent-encoded `name,number,contactId` rows). The reading itself is in its
+own class, `Contacts.smali`, called inside a catch-all. If it ever fails on
+some phone, the page gets "?" and offers the one-at-a-time picker, rather than
+the app failing. Permission refused, or an older APK without these methods,
+gets the old picker too.
+
+New build guard, `android/verify_dex.sh`, run by `build.sh` when `DEX2JAR` is
+set. It converts `classes.dex` back to JVM classes, loads them with the JVM's
+type-inferring verifier against `android.jar`, and checks that every Android
+method and field the smali calls exists in API 23. Proven on mutants: the
+2.7/2.8 register bug and a misspelt `checkSelfPermission` both fail it.
+
+Verified: 12 browser scenarios in `e2e/test_contact_picker.py`, using a stand-in
+bridge with the exact data format. They include the acceptance flow, which
+selects three people, presses Done (3), creates the group, and has the third
+person install later and find it. The new and existing dex pass `verify_dex.sh`.
+**Not verified:** the new native code has not run on a device. No emulator was
+available.
+
+### 3.9 (versionCode 23)
+
+**Added to a group before installing — and the server as the only authority
+on who is in which group.**
+
+The core of this already worked and was verified first, before anything was
+changed: a member added by number is stored as a pending `group_members` row
+(`user_id` NULL, `phone_e164` set), and `/auth/sign-in` links every pending
+row for that number to the new account (`claim_memberships`). A phone that
+signs in for the first time gets all of them on its first sync.
+
+What did not hold up, all found by reproducing:
+
+- **First sign-in while the server sleeps** (Render free tier). Sign-in timed
+  out at 20s and fell back to "signed in on this phone", and until the server
+  woke the app said *Start your first group* and *Not signed in*. That reads
+  as "you were never added". Now, until the server has answered once after
+  signing in, the empty screen says *Finding your groups…* or *Waiting for the
+  server…* and retries on its own. A missing session is fetched quietly
+  (`ensureSession`) instead of reporting *Signed out*.
+- **Removal was invisible to the person removed.** Pulls only carry rows from
+  groups you can still see, so nothing ever told a removed member's phone.
+  `/sync` now also returns `group_ids`, the complete current list of groups
+  the account may see, taken from `groups` and `group_members` on every pull.
+  The phone sets aside anything not on it (*You're no longer in "Goa Trip"*)
+  and asks again in full for anything new on it. That full re-ask matters:
+  on being added back, the group's history is older than the phone's cursor
+  and a delta would skip it.
+- **A held request missed the change.** A removal that landed between two
+  requests left nothing for that account to see, so the next long-poll was
+  held for its full 15 seconds. And if the member was added back within that
+  window, the phone never heard about the removal at all. `pull` now flags a change to
+  this account's own membership rows, and the cursor moves past it so it is
+  reported exactly once.
+- **Added back after removing the group from your own view.** The server
+  drops the removal when you are re-added, but the phone's union merge sent
+  it straight back up. A member row for yourself that the phone has never seen
+  now counts as being (re-)added, and the local removal follows the server.
+- **Changing a member's number** kept the old person's access (`user_id` was
+  only ever overwritten, never cleared). It now follows the number.
+- **A different number signing in on the same phone** saw the previous
+  account's cached groups until the first sync. The cache is now cleared when
+  the number changes (`sl.cacheOwner`); the same number signing back in keeps it.
+
+No schema change and no migration: `group_ids` and the membership check read
+the tables that already existed.
+
+Verified on SQLite and on PostgreSQL 16: 97 backend tests, 16 new in
+`tests/test_late_install.py`, including a real server process stopped and
+restarted between the add and the first sign-in. End to end
+(`e2e/run.sh late`), real phone pages against a real server, every late joiner
+a brand-new install signing in through the sign-in screen: the exact
+late-install scenario, four groups, the membership matrix, a server restart,
+deleted and removed before install, removal-from-view surviving syncs, a new
+group, a restart and a reinstall, removed and added back with history, the
+same after hiding, logout/login and switching numbers, and a sleeping server.
+
 ### 3.8 (versionCode 22)
 
 **"1 change refused — you're not in that group", on and off, forever.**

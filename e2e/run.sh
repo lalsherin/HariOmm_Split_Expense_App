@@ -1,25 +1,39 @@
 #!/bin/sh
-# Two-phone end-to-end check against a real (local, SQLite) server.
+# Two-phone end-to-end checks against a real (local, SQLite) server.
 #
 #   pip install -r ../backend/requirements-dev.txt playwright && playwright install chromium
-#   ./run.sh            # all scenarios, each watched 35s   (~9 minutes)
-#   ./run.sh 35 removed_then_hides,stuck_37_phone_upgrades
+#   ./run.sh                     # everything                         (~15 minutes)
+#   ./run.sh late                # late-install checks only            (~4 minutes)
+#   ./run.sh contacts            # multi-select contact picker          (~2 minutes)
+#   ./run.sh nav                 # bottom navigation bar                (~2 minutes)
+#   ./run.sh refused 35 removed_then_hides,stuck_37_phone_upgrades
 #
 # Builds the phone page from web/split-ledger.html first, so it tests what the
 # APK would carry.
 set -e
 cd "$(dirname "$0")"
-HERE=$(pwd)
 node ../android/build_asset.js
 python3 make_page.py
 
-DB=$(mktemp -u /tmp/split-e2e-XXXXXX.db)
-( cd ../backend && DATABASE_URL="sqlite+aiosqlite:///$DB" REQUIRE_OTP=false \
-    RL_SYNC_PER_USER=100000 RL_AUTH_PER_NUMBER=1000 RL_AUTH_PER_IP=1000 \
-    exec python3 -m uvicorn app.main:app --port 8000 --log-level warning ) &
-API=$!
+export E2E_DB=$(mktemp -u /tmp/split-e2e-XXXXXX.db)
+./api.sh start
 ( cd www && exec python3 -m http.server 8080 >/dev/null 2>&1 ) &
 WEB=$!
-trap 'kill $API $WEB 2>/dev/null; rm -f "$DB"' EXIT
-sleep 3
-python3 test_refused_changes.py "$@"
+trap './api.sh stop; kill $WEB 2>/dev/null; rm -f "$E2E_DB"' EXIT
+sleep 1
+
+WHICH=${1:-all}; [ $# -gt 0 ] && shift
+STATUS=0
+if [ "$WHICH" = all ] || [ "$WHICH" = late ]; then
+  python3 test_late_install.py "$@" || STATUS=1
+fi
+if [ "$WHICH" = all ] || [ "$WHICH" = nav ]; then
+  python3 test_navigation.py "$@" || STATUS=1
+fi
+if [ "$WHICH" = all ] || [ "$WHICH" = contacts ]; then
+  python3 test_contact_picker.py "$@" || STATUS=1
+fi
+if [ "$WHICH" = all ] || [ "$WHICH" = refused ]; then
+  python3 test_refused_changes.py "$@" || STATUS=1
+fi
+exit $STATUS

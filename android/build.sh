@@ -47,6 +47,13 @@ echo "==> assembling smali -> classes.dex"
 javac -cp "$APKTOOL" -d build Dexer.java
 java -cp "$APKTOOL:build" Dexer smali build/classes.dex 23
 
+if [ -n "$DEX2JAR" ]; then
+  echo "==> verifying classes.dex against the Android API (verify_dex.sh)"
+  ./verify_dex.sh build/classes.dex
+else
+  echo "==> skipping dex verification (set DEX2JAR to run verify_dex.sh)"
+fi
+
 echo "==> packaging resources and assets"
 aapt package -f -M AndroidManifest.xml -S res -A assets -I "$ANDROID_JAR" -F build/app.apk
 ( cd build && aapt add app.apk classes.dex >/dev/null )

@@ -138,3 +138,7 @@ class SyncResponse(BaseModel):
     # than as a delta — there are only ever a handful, and a complete list is
     # something the phone can simply adopt instead of having to reconcile.
     hidden: List[str] = Field(default_factory=list)
+    # Every group this account can currently see (member or creator), in
+    # full. Lets the phone drop groups it has been removed from and fetch
+    # groups it has been added back to. Absent from servers older than 3.9.
+    group_ids: List[str] = Field(default_factory=list)

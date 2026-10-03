@@ -5,7 +5,7 @@ this project is, what the pieces are called, how they are joined together, and
 which decisions are already settled and why. Everything else in `docs/` goes
 deeper on one topic; this is the map.
 
-Last updated for **3.8 (versionCode 22)**, 25 September 2026.
+Last updated for **3.11 (versionCode 25)**, 3 October 2026.
 
 ---
 
@@ -113,6 +113,11 @@ Other things the app relies on:
 - **Tombstones.** Nothing is ever hard-deleted, because a phone that has been
   offline for a week has to learn that something went away.
 - **Last writer wins** on a row's `updated_at`, per row, not per group.
+- **The server's list of your groups wins.** Every `/sync` reply carries
+  `group_ids`, every group the account is in right now. A group not on it is
+  set aside on the phone (you were removed); a group newly on it triggers a full
+  re-fetch (you were added, or added back, and its history is older than the
+  phone's cursor).
 - **Names are per-phone.** Everyone sees their own contact name for each
   person. The name the group's creator typed is only a fallback.
 
@@ -126,6 +131,8 @@ android/          the phone build
   build.sh                <- builds dist/split_expense.apk
   build_asset.js          <- turns web/split-ledger.html into the APK's page
   smali/…/MainActivity.smali   <- the hand-written Activity (WebView + contact picker)
+  smali/…/Contacts.smali       <- reads the address book for the multi-select picker
+  verify_dex.sh           <- optional build guard: JVM-verifies the dex against android.jar
   Dexer.java              <- calls apktool's smali assembler
   lint_registers.py       <- build guard (see below)
   check_version.py        <- build guard (see below)
@@ -138,7 +145,7 @@ backend/          the sync server (FastAPI + SQLAlchemy + Postgres)
   app/sync/service.py     <- push/pull, the rules about who may change what
   app/sync/router.py      <- the /sync endpoint, including long polling
   app/auth/service.py     <- sign-in, refresh-token rotation
-  tests/                  <- 81 tests, runnable on SQLite or real Postgres
+  tests/                  <- 97 tests, runnable on SQLite or real Postgres
 brand/split-buddy-logo.png  the supplied logo — every icon is generated from it
 e2e/             two-phone end-to-end checks against a real local server (./run.sh)
 web/split-ledger.html     <- THE APP. ~3,700 lines. Everything the user sees.
@@ -206,13 +213,16 @@ automatically; being dormant is not a reason to be locked out.
 
 ## 6. Versions
 
-Current: **3.8 / versionCode 22.**
+Current: **3.11 / versionCode 25.**
 
 `versionCode` must go **up** every release or Play refuses the upload and
 Android refuses the update.
 
 | | What it was about |
 |---|---|
+| 3.11 | Bottom navigation: Home, Groups, Analytics, Bills, Balances |
+| 3.10 | Choose several contacts at once (in-app picker, Done (n)) |
+| 3.9 | Added-before-installing made dependable: server's group list is authoritative, removal reaches the removed, sleeping-server first sign-in |
 | 3.8 | Fixed the "1 change refused" toast repeating forever after being taken out of a group |
 | 3.7 | The Split Buddy logo is the app icon |
 | 3.6 | Fixed a removed group coming back when another was removed |
@@ -401,10 +411,18 @@ Not bugs that bite at this size, but they are real:
 
 ## 14. Tests
 
-- **Backend:** `cd backend && python3 -m pytest` — 81 tests.
+- **Backend:** `cd backend && python3 -m pytest` — 97 tests (also run against PostgreSQL with `TEST_DATABASE_URL`).
 - **Refused changes, end to end:** `cd e2e && ./run.sh` — nine scenarios, two
   phones, a real local server; added in 3.8 for the repeating "change refused"
   toast.
+- **Bottom navigation, end to end:** `cd e2e && ./run.sh nav` — every tab,
+  repeated switching, Back, scrolling, 412–280px widths. Added in 3.11.
+- **Contact picker, end to end:** `cd e2e && ./run.sh contacts` — choosing
+  several people, search, toggles, cancel/back, duplicates, 3,000 contacts.
+  Added in 3.10.
+- **Added before installing, end to end:** `cd e2e && ./run.sh late` — the
+  late joiner is always a fresh install signing in through the real screen,
+  including a server restart and a sleeping server. Added in 3.9.
 - **The app:** Playwright scripts drive two "phones" against a real server —
   group delivery, delete permissions, sign-out recovery, the connection check,
   layout down to a 280px screen at 175% text, and the latency of an update
