@@ -5,7 +5,7 @@ this project is, what the pieces are called, how they are joined together, and
 which decisions are already settled and why. Everything else in `docs/` goes
 deeper on one topic; this is the map.
 
-Last updated for **3.15 (versionCode 29)**, 3 October 2026.
+Last updated for **3.17 (versionCode 31)**, 3 October 2026.
 
 ---
 
@@ -217,13 +217,15 @@ automatically; being dormant is not a reason to be locked out.
 
 ## 6. Versions
 
-Current: **3.15 / versionCode 29.**
+Current: **3.17 / versionCode 31.**
 
 `versionCode` must go **up** every release or Play refuses the upload and
 Android refuses the update.
 
 | | What it was about |
 |---|---|
+| 3.17 | Fixed groups vanishing after offline → sign out/in or a server that lost its data: a group missing from the server's list is re-sent, never dropped |
+| 3.16 | Share is for balances only: the per-expense share card removed |
 | 3.15 | Share an expense, a balance or a group summary as an image card (Android share sheet) |
 | 3.14 | HexaNxt-aligned colours (deep navy, violet, teal); no layout or logic change |
 | 3.13 | Home: sync row moved to the drawer only; Add expense asks which group; Back-history fix |
@@ -316,6 +318,11 @@ Full walkthrough in **`docs/DEPLOY.md`**. The short version:
   "No connection" and the next one works. **Starter at $7/month never sleeps.**
   If anyone other than you uses this, pay the $7 — it is the difference between
   "our expense app" and "that app that never works".
+- **The keep-awake job is not sync.** A scheduled request to `/health` every
+  10 minutes (cron-job.org) stops the free host sleeping. `/health` returns
+  `{"status":"ok", "build":…}` and touches no data. It moves nothing between
+  phones: that is `/sync`, which the app calls by itself. The job only means
+  `/sync` is answered at once instead of after a 30–60s wake-up.
 
 ---
 
@@ -371,7 +378,8 @@ that person. For you and your friends that is a fair trade. The moment a
 stranger can reach the URL it is not. Turning it on needs an SMS provider and,
 for Indian numbers, DLT registration — a regulatory step, not a code change.
 
-**Share cards are pictures, drawn on the phone, with no link in them.** The
+**Only balances can be shared, as pictures drawn on the phone, with no link
+in them.** Sharing a single expense was tried in 3.15 and removed in 3.16. The
 person receiving one needs nothing — not the app, not an account. The card is
 drawn by the page on a canvas from the same functions the screens use
 (`payersOf`, `pairwiseDebts`, `simplifyDebts`, `netBalances`, `fmt`) and never
@@ -381,6 +389,20 @@ writes anything. The native side writes it to **one** file,
 read grant. The provider is our own (`ShareProvider`), not androidx's
 FileProvider, because this project has no Gradle and no androidx; it serves
 that one name and nothing else, read-only, and is not exported.
+
+**A group missing from the server's list is re-sent, never dropped (3.17).**
+Every sync answer carries the list of groups this account is in. A group on
+the phone but not on that list *looks* like a removal, but is just as often a
+group the server never got (made offline, then a sign-out wiped its pending
+upload — what happened in 3.16) or a server that lost its data. So the phone
+sends the whole group again and lets the server decide: it is created
+(restored) if the server has no such group, or refused with `not_a_member` if
+the owner really took you out — and only that refusal sets it aside. A group
+sent and still not listed is re-sent at most twice. Signing out keeps the
+pending changes; a sync answer without a proper body is a failure, not
+"Synced"; and "Synced" only shows once nothing is waiting to be sent. The first
+launch of 3.17 re-checks, once, every group an older version had set aside
+this way (`recheckSetAside`), so the ones lost to the old rule come back.
 
 **The creator is in the group from the start**, listed first, and cannot remove
 themselves — that is what deleting the group is for, and the balances would
@@ -434,11 +456,17 @@ Not bugs that bite at this size, but they are real:
 - **Refused changes, end to end:** `cd e2e && ./run.sh` — nine scenarios, two
   phones, a real local server; added in 3.8 for the repeating "change refused"
   toast.
-- **Share cards, end to end:** `cd e2e && ./run.sh cards` — expense (equal,
-  unequal, two payers, odd paise), balance (you owe / you are owed / total /
-  settled, Simplified and Exact), group summary, 25 people with long names,
-  USD/EUR/GBP, preview/Cancel/Back, native failures; each PNG is decoded and
-  read back with OCR, and the app's data is compared before and after. Added in 3.15.
+- **Sync safety, end to end:** `cd e2e && ./run.sh syncsafety` — the
+  online → offline → online sequence, offline group + sign out + sign in, a
+  server that comes back empty, 401/403/500/503/timeouts/empty or broken
+  answers, a sleeping host, two phones, real removals, racing syncs. Added in
+  3.17; it fails on 3.16.
+- **Balance cards, end to end:** `cd e2e && ./run.sh cards` — no expense
+  offers Share; you owe / you are owed (the ₹1,350 example both ways), one
+  person owing two, settled, Simplified and Exact, group summary, 25 people
+  with long names, USD/EUR/GBP, preview/Cancel/Back, native failures. Each PNG
+  is read back with OCR and the app's data is compared before and after.
+  Added in 3.15, balances-only since 3.16.
 - **Share-card native code:** `android/verify_dex.sh` runs the real
   ShareProvider and `shareImage` (from the built dex) against stand-in Android
   classes: file written, provider answers, share intent, refusals. Added in 3.15.

@@ -1,14 +1,14 @@
-"""End to end: Share Expense / Share Balance as an image card.
+"""End to end: Share Balance as an image card (3.16: balances only).
 
-Every card is made through the real buttons (expense → Share → preview →
-Share; Balances → Share → Group summary or a member → preview → Share). The
+Every card is made through the real buttons (Balances → Share → a member or
+Group summary → preview → Share), and no expense anywhere offers Share. The
 Android bridge is a stand-in that keeps what the app hands it: the PNG (as
 base64) and the caption. The PNG is then decoded and checked — its size, its
 pixels, and its words, read back with OCR — and the app's data is compared
 before and after to prove sharing changed nothing.
 
     ./run.sh cards
-    python3 test_share_cards.py expense_equal,balance_owe_and_owed   # some only
+    python3 test_share_cards.py balance_owe_and_owed,group_summary    # some only
     CARDS_OUT=/tmp/cards python3 test_share_cards.py                 # keep the PNGs
 """
 import asyncio
@@ -147,16 +147,6 @@ async def go_balances(p):
     await p.page.wait_for_timeout(150)
 
 
-async def share_expense(p, desc):
-    """Bills → the expense → Share → preview. Leaves the preview open."""
-    await record_text(p)
-    await go_bills(p)
-    await p.page.click(f".erow:has(.t:text-is('{desc}'))")
-    await p.page.wait_for_selector("#modalRoot .modal")
-    await p.page.click("#modalRoot .modal-ft button:has-text('Share')")
-    await p.page.wait_for_selector("#modalRoot img.cardimg", timeout=15000)
-
-
 async def share_balance(p, who):
     """Balances → Share → `who` ('Group summary' or a member) → preview."""
     await record_text(p)
@@ -225,70 +215,148 @@ async def card_checks(p, img, caption, problems, label):
 
 # ------------------------------------------------------------------ scenarios
 
-async def s_expense_equal(br):
-    """Equal split, one payer: amount, payer, each share, who owes whom."""
+SHARE_SEL = "#modalRoot .modal-ft button:has-text('Share')"
+
+
+async def open_expense(p, desc, where):
+    """Open an expense the ways a person can: Bills, or the group's own list."""
+    await p.page.wait_for_selector("#modalRoot .modal", state="detached")   # any earlier dialog gone
+    if where == "bills":
+        await go_bills(p)
+    else:
+        await p.app("() => { go('groups'); S.groupOpen = true; S.tab = 'expenses'; render(); }")
+        await p.page.wait_for_timeout(150)
+    await p.page.click(f".erow:has(.t:text-is('{desc}'))")
+    await p.page.wait_for_selector("#modalRoot .modal")
+
+
+async def s_no_expense_share(br):
+    """Tests 1, 12, 14: no expense offers Share, anywhere; editing an expense
+    still works exactly as before; the expense card code is gone."""
     a, gid = await setup(br, ["Sherin", "Rahul", "Priya"])
     await add(a, gid, "Dinner", 240000, {"Sherin": 240000}, equal(240000, ["Sherin", "Rahul", "Priya"]), "equal")
-    await record_text(a)
     problems = []
-    before = await settled(a)
-    await watch_writes(a)
-    await share_expense(a, "Dinner")
-    img, caption, _ = await press_share(a)
-    keep(img, "expense_equal")
-    text = await card_checks(a, img, caption, problems, "equal")
-    missing = has(text, "Goa Trip", "Dinner", "Paid by Sherin", "Rahul", "Priya", "2,400.00", "800.00", "Rahul owes Sherin", "Priya owes Sherin")
-    check(not missing, f"equal: card lacks {missing}", problems)
-    m = await a.page.evaluate("window.__t('window.__lastCard.model')")
-    split = {r["label"]: r["value"] for r in m["sections"][-1]["rows"]}
-    check(split == {"Sherin": "₹800.00", "Rahul": "₹800.00", "Priya": "₹800.00"}, f"equal: split rows {split}", problems)
-    owes = [(r["label"], r["value"]) for r in m["callout"]["rows"]]
-    check(owes == [("Rahul owes Sherin", "₹800.00"), ("Priya owes Sherin", "₹800.00")], f"equal: owes {owes}", problems)
-    check(caption.startswith("Goa Trip – Dinner"), f"equal: caption {caption!r}", problems)
-    await a.sync()
-    check(await snapshot(a) == before, "equal: sharing changed the app's data", problems)
-    check(all(n == 0 for n in a.pushes), f"equal: a sync pushed changes {a.pushes}", problems)
+    for where in ("bills", "group"):
+        await open_expense(a, "Dinner", where)
+        title = (await a.page.text_content("#modalRoot .modal-hd")).strip()
+        check(title.startswith("Edit expense"), f"{where}: opened {title!r}", problems)
+        btns = await a.page.eval_on_selector_all("#modalRoot .modal-ft button", "els => els.map(e => e.textContent.trim())")
+        check(not any("Share" in b for b in btns), f"{where}: expense dialog has Share: {btns}", problems)
+        check(btns == ["Delete", "Cancel", "Save expense"], f"{where}: expense dialog buttons {btns}", problems)
+        check(await a.page.locator("#modalRoot [title*='image' i], #modalRoot [aria-label*='share' i]").count() == 0,
+              f"{where}: a share control is still in the expense dialog", problems)
+        await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
+    # nothing on the expense list rows either
+    await go_bills(a)
+    check(await a.page.locator(".erow button, .erow [title*='hare']").count() == 0, "an expense row has a button", problems)
+    # the new-expense dialog never had one
+    await a.page.click(".topbar button:has-text('Add expense')")
+    await a.page.wait_for_selector("#modalRoot .modal")
+    check(await a.page.locator(SHARE_SEL).count() == 0, "Add expense has Share", problems)
+    await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
+    # the expense card is gone from the app, not just hidden
+    gone = await a.app("() => [typeof expenseCard, String(layoutCard).includes('model.title'), String(layoutCard).includes('model.meta')]")
+    check(gone == ["undefined", False, False], f"expense card code still present: {gone}", problems)
+    # editing still works: change the amount, save, balances follow
+    await open_expense(a, "Dinner", "bills")
+    await a.page.wait_for_timeout(300)                     # the dialog finishes setting itself up
+    await a.page.fill("#modalRoot input[placeholder='0.00'] >> nth=0", "3000")
+    await a.page.wait_for_function("document.querySelector('#modalRoot .modal-bd').innerText.includes('3,000.00 of')")
+    await a.page.click("#modalRoot .modal-ft button:has-text('Save expense')")
+    await a.page.wait_for_selector("#modalRoot .modal", state="detached")
+    await a.page.wait_for_timeout(300)
+    e = await a.app("() => { const e = S.expenses.find(x => x.description === 'Dinner' && !x.deleted); return [e.amount, Object.values(e.splits)]; }")
+    check(e == [300000, [100000, 100000, 100000]], f"edited expense {e}", problems)
     return problems
 
 
-async def s_expense_unequal_and_multi_payer(br):
-    """Unequal shares show their real values; several payers get a Paid list;
-    an odd amount keeps its paise and the rows add up to the total."""
-    a, gid = await setup(br, ["Sherin", "Rahul", "Priya"])
-    await add(a, gid, "Hotel", 1000000, {"Rahul": 1000000}, {"Sherin": 500000, "Rahul": 300000, "Priya": 200000})
-    await add(a, gid, "Fuel", 100000, {"Sherin": 60000, "Priya": 40000}, equal(100000, ["Sherin", "Rahul", "Priya"]), "equal")
-    await record_text(a)
+async def s_reported_example_1350(br):
+    """Tests 2-4 with the exact example: Rahul owes Sherin ₹1,350 in Goa Trip,
+    then the same relationship reversed."""
     problems = []
+    a, gid = await setup(br, ["Sherin", "Rahul"])
+    await add(a, gid, "Villa", 270000, {"Sherin": 270000}, equal(270000, ["Sherin", "Rahul"]), "equal")
     before = await settled(a)
-    await share_expense(a, "Hotel")
+    await watch_writes(a)
+    await go_balances(a)
+    check(await a.page.locator(".card-hd button[title='Share balances as an image']").count() == 1, "Balances has no Share", problems)
+    await share_balance(a, "Rahul")
     img, caption, _ = await press_share(a)
-    keep(img, "expense_unequal")
-    text = await card_checks(a, img, caption, problems, "unequal")
-    missing = has(text, "Hotel", "10,000.00", "Paid by Rahul", "5,000.00", "3,000.00", "2,000.00", "Sherin owes Rahul", "Priya owes Rahul")
-    check(not missing, f"unequal: card lacks {missing}", problems)
+    keep(img, "example_rahul_owes_sherin")
+    text = await card_checks(a, img, caption, problems, "Rahul owes")
+    missing = has(text, "Split Buddy", "Goa Trip", "YOUR BALANCE", "Rahul", "1,350.00", "YOU OWE SHERIN")
+    check(not missing, f"Rahul owes: card lacks {missing}", problems)
     m = await a.page.evaluate("window.__t('window.__lastCard.model')")
-    owes = [(r["label"], r["value"]) for r in m["callout"]["rows"]]
-    check(owes == [("Sherin owes Rahul", "₹5,000.00"), ("Priya owes Rahul", "₹2,000.00")], f"unequal: owes {owes}", problems)
+    check((m["amount"], m["amountNote"], m["amountTone"]) == ("₹1,350.00", "YOU OWE SHERIN", "neg"), f"Rahul owes: {m}", problems)
+    check(caption == "Goa Trip | Rahul owes Sherin ₹1,350.00", f"Rahul owes: caption {caption!r}", problems)
+    check(not any(k in m for k in ("title", "meta")), f"balance card carries expense fields: {list(m)}", problems)
     await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
-
-    await share_expense(a, "Fuel")
+    await share_balance(a, "Sherin")
     img, caption, _ = await press_share(a)
-    keep(img, "expense_two_payers")
-    await card_checks(a, img, caption, problems, "two payers")
+    keep(img, "example_sherin_owed_by_rahul")
     m = await a.page.evaluate("window.__t('window.__lastCard.model')")
-    heads = [s["heading"] for s in m["sections"]]
-    check(heads == ["Paid", "Split"], f"two payers: sections {heads}", problems)
-    paid = {r["label"]: r["value"] for r in m["sections"][0]["rows"]}
-    check(paid == {"Sherin": "₹600.00", "Priya": "₹400.00"}, f"two payers: paid {paid}", problems)
-    split = [r["value"] for r in m["sections"][1]["rows"]]
-    check(split == ["₹333.34", "₹333.33", "₹333.33"], f"two payers: split {split}", problems)
-    # the app's own pairwise rule, not a new calculation
-    want = await a.app("""gid => { const g = S.groups.find(x => x.id === gid); const e = S.expenses.find(x => x.description === 'Fuel');
-      return pairwiseDebts(g.members, [e], []).map(d => memberName(d.from, g) + ' owes ' + memberName(d.to, g) + ' ' + fmt(d.amount, 'INR')); }""", gid)
-    got = [r["label"] + " " + r["value"] for r in m["callout"]["rows"]]
-    check(got == want, f"two payers: card says {got}, the app says {want}", problems)
-    check(m["amountNote"] == "Paid by Sherin, Priya", f"two payers: {m['amountNote']!r}", problems)
-    check(await snapshot(a) == before, "unequal: sharing changed the app's data", problems)
+    check((m["amount"], m["amountNote"], m["amountTone"]) == ("₹1,350.00", "YOU ARE OWED BY RAHUL", "pos"), f"Sherin: {m['amountNote']}", problems)
+    await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
+    await a.sync()
+    check((await snapshot(a))["d"] == before["d"], "1350: sharing changed the app's data", problems)
+    check(all(n == 0 for n in a.pushes), f"1350: a sync pushed changes {a.pushes}", problems)
+
+    # reversed: Rahul paid, so now Sherin owes Rahul ₹1,350
+    b, gid2 = await setup(br, ["Sherin", "Rahul"])
+    await add(b, gid2, "Villa", 270000, {"Rahul": 270000}, equal(270000, ["Sherin", "Rahul"]), "equal")
+    await share_balance(b, "Rahul")
+    img, caption, _ = await press_share(b)
+    keep(img, "example_reversed")
+    text = await card_checks(b, img, caption, problems, "reversed")
+    check(not has(text, "YOU ARE OWED BY SHERIN", "1,350.00"), "reversed: card lacks 'YOU ARE OWED BY SHERIN ₹1,350.00'", problems)
+    m = await b.page.evaluate("window.__t('window.__lastCard.model')")
+    check((m["amountNote"], m["amountTone"]) == ("YOU ARE OWED BY SHERIN", "pos"), f"reversed: {m['amountNote']}", problems)
+    return problems
+
+
+async def s_multiple_people_not_combined(br):
+    """Test 17: Rahul owes Sherin ₹800 and Arun ₹500 — two separate lines, the
+    total only as their sum, never one invented person-to-person debt."""
+    a, gid = await setup(br, ["Sherin", "Rahul", "Arun"])
+    await add(a, gid, "Hotel", 80000, {"Sherin": 80000}, {"Rahul": 80000})
+    await add(a, gid, "Fuel", 50000, {"Arun": 50000}, {"Rahul": 50000})
+    problems = []
+    for simplify in (False, True):
+        await a.app(f"() => {{ S.simplify = {'true' if simplify else 'false'}; }}")
+        await share_balance(a, "Rahul")
+        img, caption, _ = await press_share(a)
+        keep(img, "rahul_owes_two_people" + ("_simplified" if simplify else ""))
+        text = await card_checks(a, img, caption, problems, "two people")
+        m = await a.page.evaluate("window.__t('window.__lastCard.model')")
+        rows = sorted((r["label"], r["value"]) for r in m["sections"][0]["rows"]) if m["sections"] else []
+        check(rows == [("You owe Arun", "₹500.00"), ("You owe Sherin", "₹800.00")], f"simplify={simplify}: details {rows}", problems)
+        check((m["amount"], m["amountNote"]) == ("₹1,300.00", "YOU OWE IN TOTAL"), f"simplify={simplify}: {m['amount']} {m['amountNote']}", problems)
+        check(not has(text, "You owe Sherin", "800.00", "You owe Arun", "500.00"), f"simplify={simplify}: lines not on the card", problems)
+        await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
+    return problems
+
+
+async def s_settle_up_then_card(br):
+    """Test 13: recording a payment still works, and the card reads the new
+    balance from the app (BALANCE settled) without the card touching anything."""
+    a, gid = await setup(br, ["Sherin", "Rahul"])
+    await add(a, gid, "Villa", 270000, {"Sherin": 270000}, equal(270000, ["Sherin", "Rahul"]), "equal")
+    problems = []
+    await go_balances(a)
+    await a.page.click(".settle-row button:has-text('Record')")
+    await a.page.click("#modalRoot .modal-ft button:has-text('Record payment')")
+    await a.page.wait_for_selector("#modalRoot .modal", state="detached")
+    check(await a.app("() => currentSettlements().length") == 1, "payment not recorded", problems)
+    before = await settled(a)
+    await share_balance(a, "Rahul")
+    img, caption, _ = await press_share(a)
+    keep(img, "after_payment_settled")
+    text = await card_checks(a, img, caption, problems, "after payment")
+    m = await a.page.evaluate("window.__t('window.__lastCard.model')")
+    check((m["amount"], m["amountNote"]) == ("₹0.00", "YOU'RE ALL SETTLED"), f"after payment: {m['amount']} {m['amountNote']}", problems)
+    check("owe" not in m["amountNote"].lower().replace("you're", ""), "after payment: an 'owe' card for a settled member", problems)
+    await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
+    check((await snapshot(a))["d"] == before["d"], "after payment: sharing changed the data", problems)
     return problems
 
 
@@ -403,34 +471,34 @@ async def s_group_summary(br):
     check((await snapshot(a))["d"] == before["d"], "summary: sharing changed the app's data", problems)
     return problems
 
-
 async def s_many_people_long_text(br):
-    """25 people, a very long title and long names: the card grows, every line
-    wraps inside it, and every person is on it."""
+    """25 people and very long names: the summary grows, every line wraps
+    inside the card, every person is on it; a long-named member's card too."""
     long_name = "Venkataraghavan Subramaniam Iyer-Krishnamurthy"
     people = ["Sherin", long_name] + ["Friend %02d" % i for i in range(1, 24)]
     a, gid = await setup(br, people, group="College Reunion Weekend at the Backwaters — Alleppey 2026")
-    title = "Houseboat booking, lunch, dinner and the extra night because the boat broke down near Kumarakom"
-    await add(a, gid, title, 2500000, {long_name: 2500000}, equal(2500000, people), "equal")
-    await record_text(a)
+    await add(a, gid, "Houseboat", 2500000, {long_name: 2500000}, equal(2500000, people), "equal")
     problems = []
-    await share_expense(a, title)
-    img, caption, _ = await press_share(a)
-    keep(img, "expense_25_people")
-    text = await card_checks(a, img, caption, problems, "25 people")
-    check(img.size[1] > 2500, f"25 people: card only {img.size[1]} tall", problems)
-    m = await a.page.evaluate("window.__t('window.__lastCard.model')")
-    check(len(m["sections"][-1]["rows"]) == 25, f"25 people: {len(m['sections'][-1]['rows'])} split rows", problems)
-    drawn = " ".join(t["s"] for t in await a.page.evaluate("window.__texts"))
-    gone = [p for p in people if p.split()[0] not in drawn]
-    check(not gone, f"25 people: not drawn: {gone}", problems)
-    missing = has(text, "Houseboat", "Kumarakom", "Venkataraghavan", "Friend 23", "1,000.00")
-    check(not missing, f"25 people: card lacks {missing}", problems)
-    await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
     await share_balance(a, "Group summary")
     img, caption, _ = await press_share(a)
     keep(img, "summary_25_people")
-    await card_checks(a, img, caption, problems, "25 people summary")
+    text = await card_checks(a, img, caption, problems, "25 people summary")
+    check(img.size[1] > 2500, f"25 people: card only {img.size[1]} tall", problems)
+    m = await a.page.evaluate("window.__t('window.__lastCard.model')")
+    check(len(m["sections"][0]["rows"]) == 25, f"25 people: {len(m['sections'][0]['rows'])} balance rows", problems)
+    drawn = " ".join(t["s"] for t in await a.page.evaluate("window.__texts"))
+    gone = [p for p in people if p.split()[0] not in drawn]
+    check(not gone, f"25 people: not drawn: {gone}", problems)
+    missing = has(text, "Venkataraghavan", "Friend 23", "Backwaters")
+    check(not missing, f"25 people: card lacks {missing}", problems)
+    await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
+    await share_balance(a, long_name)
+    img, caption, _ = await press_share(a)
+    keep(img, "long_name_member")
+    await card_checks(a, img, caption, problems, "long name")
+    m = await a.page.evaluate("window.__t('window.__lastCard.model')")
+    check(m["amountNote"] == "YOU ARE OWED IN TOTAL" and len(m["sections"][0]["rows"]) == 24,
+          f"long name: {m['amountNote']} with {len(m['sections'][0]['rows']) if m['sections'] else 0} rows", problems)
     return problems
 
 
@@ -439,14 +507,12 @@ async def s_currency(br):
     for cur, want in (("USD", "$1,234.56"), ("EUR", "1.234,56"), ("GBP", "£1,234.56")):
         a, gid = await setup(br, ["Sherin", "Rahul"], currency=cur, group="Trip " + cur)
         await add(a, gid, "Tickets", 123456, {"Sherin": 123456}, {"Rahul": 123456})
-        await record_text(a)
-        await share_expense(a, "Tickets")
+        await share_balance(a, "Rahul")
         img, caption, _ = await press_share(a)
         keep(img, "currency_" + cur)
         await card_checks(a, img, caption, problems, cur)
         m = await a.page.evaluate("window.__t('window.__lastCard.model')")
-        check(want in m["amount"] and "₹" not in m["amount"], f"{cur}: amount {m['amount']!r}", problems)
-        check(all("₹" not in r["value"] for s in m["sections"] for r in s["rows"]), f"{cur}: rupee on the card", problems)
+        check(want in m["amount"] and "₹" not in m["amount"] + caption, f"{cur}: amount {m['amount']!r} / {caption!r}", problems)
         check(not has(ocr(img), want.strip("$£")), f"{cur}: {want} not read on the card", problems)
         await a.ctx.close()
     return problems
@@ -458,7 +524,7 @@ async def s_preview_cancel_and_failures(br):
     await add(a, gid, "Snacks", 50000, {"Sherin": 50000}, {"Rahul": 50000})
     problems = []
     before = await settled(a)
-    await share_expense(a, "Snacks")
+    await share_balance(a, "Rahul")
     title = (await a.page.text_content("#modalRoot .modal-hd")).strip()
     check(title.startswith("Share card"), f"preview title {title!r}", problems)
     btns = await a.page.eval_on_selector_all("#modalRoot .modal-ft button", "els => els.map(e => e.textContent.trim())")
@@ -471,8 +537,8 @@ async def s_preview_cancel_and_failures(br):
     for answer in ("error", "throw"):
         await a.page.evaluate(f"window.__bridgeAnswer = '{answer}'")
         await a._watch_toasts()
-        await share_expense(a, "Snacks")
-        await a.page.click("#modalRoot .modal-ft button:has-text('Share')")
+        await share_balance(a, "Rahul")
+        await a.page.click(SHARE_SEL)
         await a.page.wait_for_timeout(300)
         t = [x["m"] for x in await a.page.evaluate("window.__toasts")]
         check(any("Couldn't prepare the image" in m for m in t), f"{answer}: toasts {t}", problems)
@@ -480,13 +546,11 @@ async def s_preview_cancel_and_failures(br):
         await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
     await a.page.evaluate("window.__bridgeAnswer = 'ok'")
 
-    # the native side couldn't open the share sheet (it calls __shareFailed)
     await a._watch_toasts()
     await a.page.evaluate("window.__shareFailed()")
     t = [x["m"] for x in await a.page.evaluate("window.__toasts")]
     check(any("Couldn't open sharing" in m for m in t), f"__shareFailed: toasts {t}", problems)
 
-    # a card that cannot be built is a message, not a crash
     await a._watch_toasts()
     await a.app("() => openCardPreview(() => { throw new Error('boom'); })")
     await a.page.wait_for_timeout(200)
@@ -497,19 +561,11 @@ async def s_preview_cancel_and_failures(br):
 
 
 async def s_entry_points(br):
-    """Share is on a saved expense (not a new one) and on Balances' Settle up;
-    the balance menu offers the summary and every member."""
+    """Balances → Share lists the summary and every member with their balance;
+    Back closes the preview like any other dialog."""
     a, gid = await setup(br, ["Sherin", "Rahul", "Priya"])
     await add(a, gid, "Lunch", 90000, {"Sherin": 90000}, equal(90000, ["Sherin", "Rahul", "Priya"]), "equal")
     problems = []
-    await go_bills(a)
-    await a.page.click(".topbar button:has-text('Add expense')")
-    await a.page.wait_for_selector("#modalRoot .modal")
-    check(await a.page.locator("#modalRoot .modal-ft button:has-text('Share')").count() == 0, "a new expense has Share", problems)
-    await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
-    await a.page.click(".erow:has(.t:text-is('Lunch'))")
-    check(await a.page.locator("#modalRoot .modal-ft button:has-text('Share')").count() == 1, "a saved expense has no Share", problems)
-    await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
     await go_balances(a)
     await a.page.click(".card-hd button[title='Share balances as an image']")
     opts = await a.page.eval_on_selector_all("#modalRoot .pickgrp .gn", "els => els.map(e => e.textContent)")
@@ -517,7 +573,11 @@ async def s_entry_points(br):
     subs = await a.page.eval_on_selector_all("#modalRoot .pickgrp .gs", "els => els.map(e => e.textContent)")
     check(subs[1:] == ["is owed ₹600.00", "owes ₹300.00", "owes ₹300.00"], f"balance menu amounts {subs}", problems)
     await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
-    # Back closes the preview like any other dialog
+    # the same Share from inside the group (Groups → group → Balances tab)
+    await a.app("() => { go('groups'); S.groupOpen = true; S.tab = 'balances'; render(); }")
+    await a.page.wait_for_timeout(150)
+    check(await a.page.locator(".card-hd button[title='Share balances as an image']").count() == 1,
+          "group's Balances tab has no Share", problems)
     await share_balance(a, "Group summary")
     await a.page.go_back(); await a.page.wait_for_timeout(300)
     check(not await a.page.is_visible("#modalRoot .modal"), "Back left the preview open", problems)
@@ -525,28 +585,9 @@ async def s_entry_points(br):
     return problems
 
 
-async def s_unsaved_edit_not_shared(br):
-    """Share in the edit dialog sends the saved expense, never unsaved typing."""
-    a, gid = await setup(br, ["Sherin", "Rahul"])
-    await add(a, gid, "Movie", 80000, {"Sherin": 80000}, {"Sherin": 40000, "Rahul": 40000})
-    problems = []
-    before = await settled(a)
-    await go_bills(a)
-    await a.page.click(".erow:has(.t:text-is('Movie'))")
-    await a.page.fill("#modalRoot input[placeholder^='Dinner at']", "Changed but not saved")
-    await a.page.click("#modalRoot .modal-ft button:has-text('Share')")
-    await a.page.wait_for_selector("#modalRoot img.cardimg", timeout=15000)
-    m = await a.page.evaluate("window.__t('window.__lastCard.model')")
-    check(m["title"] == "Movie", f"shared the unsaved title {m['title']!r}", problems)
-    await a.page.click("#modalRoot .modal-ft button:has-text('Cancel')")
-    check((await snapshot(a))["d"] == before["d"], "unsaved edit: data changed", problems)
-    return problems
-
-
-SCENARIOS = [s_expense_equal, s_expense_unequal_and_multi_payer, s_balance_owe_and_owed, s_settled_member,
-             s_group_summary, s_many_people_long_text, s_currency, s_preview_cancel_and_failures,
-             s_entry_points, s_unsaved_edit_not_shared]
-
+SCENARIOS = [s_no_expense_share, s_reported_example_1350, s_balance_owe_and_owed, s_multiple_people_not_combined,
+             s_settled_member, s_settle_up_then_card, s_group_summary, s_many_people_long_text, s_currency,
+             s_preview_cancel_and_failures, s_entry_points]
 
 async def main():
     ok = True
@@ -567,4 +608,5 @@ async def main():
     sys.exit(0 if ok else 1)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

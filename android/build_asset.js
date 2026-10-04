@@ -259,6 +259,7 @@ function dropDemoGroup() {
 applyStoredTheme();
 localLoad();
 dropDemoGroup();
+recheckSetAside();      // 3.17: bring back groups an older version wrongly set aside
 S.ready = true;
 S.gid = LS.get("sl.lastGroup", null);
 // A group hidden on this phone must not be the one we open on.

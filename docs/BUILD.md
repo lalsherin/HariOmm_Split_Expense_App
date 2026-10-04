@@ -112,6 +112,94 @@ the package plus dynamic testing of the page it carries.
 
 ## Changelog
 
+### 3.17 (versionCode 31)
+
+**Fixed: a group could vanish after going offline and coming back.** Seen as
+*Offline — saved here* (group visible) → *Not signed in* (group visible) →
+*Synced* and "No groups yet".
+
+Reproduced against a real server, with the data traced at every step:
+
+- **The screenshot path.** A group was made while offline, so it was queued
+  for upload. Signing out (Account → Sign out) wiped that queue, but the group
+  stayed on screen. After signing back in, the first sync sent nothing, and the
+  server's list of "groups you are in" was `[]`. The merge reads "on this phone
+  but not on the server's list" as "you were removed", so it set the group
+  aside: still in storage, flagged `revoked`, gone from the screen. The status
+  said *Synced*.
+- **Server lost its data / wrong database.** The same merge rule set every
+  group aside.
+- **A 200 reply that was not a sync answer** (`{}`, an HTML page) was taken as
+  success. *Synced* showed, the queue was cleared, and nothing had been sent.
+- **Already safe, and unchanged:** 401/403/500/503, timeouts and dropped
+  connections never touched the data. The app was never told "no groups" by a
+  failure.
+
+Fix (phone only; no server or database change):
+
+- **A group missing from the server's list is sent again, whole** (group,
+  members, expenses, payments), and the server decides:
+  - no such group on the server → it is created (restored);
+  - the owner really took you out → refused with `not_a_member` → set aside,
+    with the usual "You're no longer in …" message.
+
+  So only a server-confirmed removal hides a group. It is re-sent at most twice
+  if the server accepts it but still does not list it. Groups the person
+  deleted or removed from their own view behave as before.
+- A group sent in a request and not listed in that request's answer is not
+  treated as synced.
+- **Signing out keeps unsent changes.** They go up when you sign back in with
+  the same number. Signing in with a different number still clears the
+  previous account's data, as before. The sign-out dialog now says how many
+  changes have not reached the server yet.
+- **A sync answer must be a real one** (a numeric `seq`, and a list for
+  `group_ids` when present). Anything else is "The server sent an incomplete
+  answer — will try again", and the queue is kept.
+- ***Synced* only when nothing is left to send.** Otherwise it shows
+  *Syncing…* while the next round goes.
+- **Recovers what 3.16 set aside.** The group was never deleted: it stayed in
+  storage, marked set aside. On the first launch of 3.17, every group set aside
+  that way (not one the person deleted or removed from their own view) is sent
+  to the server once, quietly. If the server takes it, it comes back on
+  screen. If the server refuses it (you really were taken out), it stays
+  aside, with no message.
+
+Sync itself stays. It is the only thing that moves groups, expenses and
+members between phones, and it already runs by itself (long polling, retries
+with back-off). The Render keep-awake job only calls `/health`, which touches
+no data.
+
+Tests: new `e2e/test_sync_safety.py` (`./run.sh syncsafety`), 9 scenarios,
+including the recovery after updating from 3.16. It fails on 3.16 (sign-out path, empty server, empty 200) and passes on 3.17.
+
+### 3.16 (versionCode 30)
+
+**Share is for balances only.** The individual-expense share card from 3.15
+is removed: sharing one expense at a time did not fit how the app is used.
+What remains is the balance card, unchanged in look:
+
+- **Balances → Share** (on the Settle up card; the same in a group's
+  Balances tab) → pick a member → preview → Share → the Android share sheet.
+  One debt reads **YOU OWE SHERIN** or **YOU ARE OWED BY SHERIN**; several
+  give the total plus one line per person (never merged into one invented
+  debt); none reads **YOU'RE ALL SETTLED**. **Group summary** is still in the
+  same list.
+- Removed: the Share button in the Edit expense dialog, `expenseCard`, and the
+  two drawing steps only an expense card used (title, date/category line).
+  The Edit expense dialog is back exactly as it was in 3.14.
+- Kept, because the balance card uses them: the renderer, the preview, the
+  image hand-off to Android, `ShareProvider` and the share sheet. No link, no
+  URL; the picture carries everything.
+- No change to any calculation, sync, server or database code (the server
+  file changes only its version string).
+
+Tests: `e2e/test_share_cards.py` now checks that no expense offers Share
+(from Bills, from the group, Add expense, expense rows) and that the expense
+card code is gone; that editing an expense still works; the ₹1,350 example
+both ways; one person owing two people (Simplified and Exact); a recorded
+payment turning the card into "all settled"; plus the earlier summary,
+25-people, currency, preview/Cancel/Back and failure checks. 11 scenarios.
+
 ### 3.15 (versionCode 29)
 
 **Share an expense, a balance or a group summary as an image.** Tap Share →

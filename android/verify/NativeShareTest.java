@@ -27,7 +27,7 @@ public class NativeShareTest {
     String URI = "content://com.sherinlal.splitledger.share/split-buddy-card.png";
 
     Object act = Class.forName("com.sherinlal.splitledger.MainActivity").getConstructor().newInstance();
-    String r = (String) act.getClass().getMethod("shareImage", String.class, String.class).invoke(act, b64, "Goa Trip – Dinner | Rahul owes Sherin ₹800.00");
+    String r = (String) act.getClass().getMethod("shareImage", String.class, String.class).invoke(act, b64, "Goa Trip | Rahul owes Sherin ₹1,350.00");
     File out = new File(new File(cache, "share"), "split-buddy-card.png");
     check("ok".equals(r), "shareImage returns ok");
     check(out.exists() && Arrays.equals(Files.readAllBytes(out.toPath()), png), "PNG written byte-for-byte to <cache>/share/split-buddy-card.png");

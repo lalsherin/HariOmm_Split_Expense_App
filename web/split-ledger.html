@@ -2626,22 +2626,23 @@ function openShareModal(g) {
 }
 
 /* ==========================================================
-   Share cards — an expense, a balance or a group summary as an image
+   Balance cards — one member's balance, or the group summary, as an image
    ==========================================================
  *
- * Tap Share → a Split Buddy card is drawn → preview → Share → Android's own
+ * Balances → Share → a member (or Group summary) → a Split Buddy card is
+ * drawn → preview → Share → Android's own
  * share sheet (WhatsApp, Gmail, Telegram, Messages…) with the PNG attached.
  * The recipient needs nothing: the picture carries all the information. No
  * links, no URLs.
  *
- * Three layers, kept apart so new cards (settlement receipt, monthly report,
- * PDF…) only need a new builder:
+ * Three layers, kept apart so a new card (a settlement receipt, a monthly
+ * report…) only needs a new builder:
  *
- *   builders   expenseCard / memberBalanceCard / groupSummaryCard
- *              READ the app's data and call the existing money functions
- *              (payersOf, stored splits, pairwiseDebts, netBalances,
- *              simplifyDebts, fmt). They never compute money themselves and
- *              never write anything.
+ *   builders   memberBalanceCard / groupSummaryCard
+ *              READ the balances exactly as the Balances screen shows them
+ *              (netBalances, pairwiseDebts / simplifyDebts, fmt). They never
+ *              compute money themselves and never write anything.
+ *              (Individual expenses are deliberately not shareable: 3.16.)
  *   renderer   drawShareCard(model) → <canvas>: one layout for every card.
  *   output     openCardPreview → shareCardImage → AndroidBridge.shareImage
  *              (a PNG in the app's private cache, shared as content://).
@@ -2654,34 +2655,6 @@ const CARD_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sa
 /* ---- builders: data in, card model out ---- */
 function cardMemberName(id, g) { return memberName(id, g); }
 function cardDate(iso) { const d = dateParts(iso); return parseInt(d.d, 10) + " " + d.m + " " + d.y; }
-
-function expenseCard(g, e) {
-  const cur = g.currency;
-  const pay = payersOf(e);
-  const payerIds = Object.keys(pay).filter(id => pay[id] > 0);
-  const name = id => cardMemberName(id, g);
-  const order = (g.members || []).map(m => m.id);
-  const byOrder = (a, b) => (order.indexOf(a) + 1 || 1e9) - (order.indexOf(b) + 1 || 1e9);
-  const splitIds = Object.keys(e.splits || {}).filter(id => e.splits[id] > 0).sort(byOrder);
-  // who owes whom for this one expense: the app's own pairwise rule, given just this expense
-  const debts = pairwiseDebts((g.members || []).filter(m => splitIds.indexOf(m.id) >= 0 || pay[m.id]), [e], []);
-  const sections = [];
-  if (payerIds.length > 1) sections.push({ heading: "Paid", rows: payerIds.sort(byOrder).map(id => ({ label: name(id), value: fmt(pay[id], cur) })) });
-  sections.push({ heading: "Split", rows: splitIds.map(id => ({ label: name(id), value: fmt(e.splits[id], cur) })) });
-  return {
-    kind: "expense", group: g.name, kicker: "Expense", title: e.description || "Expense",
-    amount: fmt(e.amount, cur), amountTone: "ink",
-    amountNote: "Paid by " + payerIds.map(name).join(", "),
-    meta: cardDate(e.date) + (e.category ? "  ·  " + e.category : ""),
-    sections: sections,
-    callout: debts.length
-      ? { rows: debts.map(d => ({ label: name(d.from) + " owes " + name(d.to), value: fmt(d.amount, cur), tone: "neg" })) }
-      : { rows: [{ label: "Nothing owed — paid by the person it was for", value: "", tone: "muted" }] },
-    caption: g.name + " – " + (e.description || "Expense") + " | " +
-      (debts.length === 1 ? name(debts[0].from) + " owes " + name(debts[0].to) + " " + fmt(debts[0].amount, cur)
-                          : fmt(e.amount, cur) + " paid by " + payerIds.map(name).join(", "))
-  };
-}
 
 /** Transfers exactly as the Balances screen shows them (Simplified or Exact). */
 function cardTransfers(g) {
@@ -2819,12 +2792,6 @@ function layoutCard(ctx, model, logo, draw) {
     cardWrap(ctx, model.person, W).forEach(l => { text(l, X, y + 54, CARD_C.ink); y += 70; });
     y += 12;
   }
-  // title (expense)
-  if (model.title) {
-    font("700", 64);
-    cardWrap(ctx, model.title, W).forEach(l => { text(l, X, y + 58, CARD_C.ink); y += 76; });
-    y += 14;
-  }
   // the amount
   if (model.amount) {
     let px = 120; font("800", px);
@@ -2838,7 +2805,6 @@ function layoutCard(ctx, model, logo, draw) {
     cardWrap(ctx, model.amountNote, W).forEach(l => { text(l, X, y + 32, loud ? cardTone(model.amountTone) : CARD_C.ink2); y += 46; });
     spaced(0);
   }
-  if (model.meta) { font("500", 28); cardWrap(ctx, model.meta, W).forEach(l => { text(l, X, y + 28, CARD_C.muted); y += 40; }); }
   y += 26;
 
   // sections: label on the left (wraps, never under the amount), value right
@@ -3693,11 +3659,6 @@ function openExpenseModal(existing) {
         });
       }
     }) : null,
-    // the saved expense, as everyone else sees it — not unsaved edits
-    !isNew ? el("button", { class: "btn", type: "button", title: "Share as an image", onclick: () => {
-      const saved = S.expenses.find(x => x.id === existing.id && !x.deleted) || existing;
-      closeModal(); openCardPreview(() => expenseCard(g, saved));
-    } }, [iconSvg("M8 10V2.5M5 5.2L8 2.3l3 2.9M3.5 8.5v4.3c0 .4.3.7.7.7h7.6c.4 0 .7-.3.7-.7V8.5"), document.createTextNode("Share")]) : null,
     el("button", { class: "btn", text: "Cancel", onclick: closeModal }),
     save
   ];
@@ -3811,7 +3772,7 @@ function prettyPhone(e164) {
    build script so it cannot quietly drift. Shown in the connection check, next
    to the server's own build, because "is the server actually running what I
    pushed?" is otherwise unanswerable from a phone. */
-const APP_VERSION = "3.15";
+const APP_VERSION = "3.17";
 
 function myIdentity() { return LS.get("sl.identity", null); }
 function myPhone() { const i = myIdentity(); return i ? i.mobile : null; }
@@ -3910,6 +3871,8 @@ function displayNameFor(m) {
 const SYNC_HOLD = 15;
 const SYNC = {
   state: "off", error: "", at: 0, timer: null, running: false,
+  resend: [],     // groups the server did not list, to be sent again (applyPull)
+  pushed: new Set(),   // groups sent in the request now being answered
   /* Turned off if the server answers a held request straight away several
      times: that means it predates long polling and is ignoring `wait`, and
      racing round again every quarter second would hammer it for nothing. */
@@ -4136,7 +4099,7 @@ async function doRefresh() {
 }
 
 /** Groups that are allowed to leave this phone. The built-in sample never is. */
-function syncableGroups() { return S.groups.filter(g => !g.sample && !g.localOnly && !g.revoked); }
+function syncableGroups() { return S.groups.filter(g => !g.sample && !g.localOnly && (!g.revoked || g.recheck)); }
 
 function buildPush() {
   const d = dirtySet();
@@ -4311,16 +4274,26 @@ function applyPull(data, wasFull) {
    * also sends the complete list of groups this account is in, and that list
    * wins:
    *
-   *   on this phone, not on the list   you were removed (or the group was
-   *                                    never yours — a different account
-   *                                    signed in here). Set aside.
+   *   on this phone, not on the list   NOT proof of anything. It is what a
+   *                                    removal looks like, but also a group
+   *                                    the server never received (made offline
+   *                                    and its pending upload lost — signing
+   *                                    out used to wipe that list), or a
+   *                                    server that lost its data. So it is
+   *                                    sent again, whole, and the SERVER
+   *                                    decides: it is created/restored if the
+   *                                    server has no such group, or refused
+   *                                    with not_a_member if we really were
+   *                                    taken out — and only that refusal sets
+   *                                    it aside (handleRejected). 3.17.
    *   on the list, not complete here   you were added, or added back, and
    *                                    the group's history is older than this
    *                                    phone's cursor. Ask for everything once.
    *
-   * Groups made on this phone that have not reached the server yet are still
-   * queued, and are left alone. An older server sends no list; nothing here
-   * runs and the phone behaves exactly as before. */
+   * Groups already queued are left alone. An older server sends no list;
+   * nothing here runs and the phone behaves exactly as before. (A different
+   * account signing in on this phone is handled by adoptCacheFor, which clears
+   * the previous account's data before any of this.) */
   if (visible) {
     const queued = new Set(dirtySet().groups || []);
     const gone = [];
@@ -4329,11 +4302,27 @@ function applyPull(data, wasFull) {
     S.groups.forEach(g => {
       if (g.sample || g.localOnly) return;
       if (visible.has(g.id)) {
+        if (g.resent) delete g.resent;
         if (g.revoked) { g.revoked = false; missing = true; changed = true; }
         return;
       }
-      if (g.revoked || queued.has(g.id)) return;
-      if (!g.deleted && !isHidden(g.id)) gone.push(g.name || "a group");
+      if (g.revoked) return;
+      // Queued and not sent yet (changed while this request was out): it goes
+      // next round. Sent in THIS request and still not listed is different —
+      // the server has not confirmed it, so it is not "synced".
+      if (queued.has(g.id) && !SYNC.pushed.has(g.id)) return;
+      // Already gone from this phone by the person's own choice (deleted, or
+      // removed from their view): nothing on screen changes, nothing to send.
+      if (g.deleted || isHidden(g.id)) { g.revoked = true; changed = true; return; }
+      // Ask the server by sending it. Twice at most: a group the server
+      // accepted and still does not list is set aside rather than resent for ever.
+      if ((g.resent || 0) < 2) {
+        g.resent = (g.resent || 0) + 1;
+        SYNC.resend.push(g.id);           // queued after this round's clean-up
+        changed = true;
+        return;
+      }
+      gone.push(g.name || "a group");
       g.revoked = true;
       changed = true;
     });
@@ -4343,6 +4332,37 @@ function applyPull(data, wasFull) {
     else if (gone.length > 1) SYNC.note = "You're no longer in " + gone.length + " groups — they have been removed from this phone";
   }
   return changed;
+}
+
+/** Once, on the first launch of 3.17: groups an older version set aside only
+ *  because the server's list did not have them — the bug fixed in 3.17 — are
+ *  still on this phone. Each is sent to the server once, quietly, still set
+ *  aside: if the server takes it (it never had it, or we are still in it) it
+ *  comes back on screen; if the server refuses it (we really were taken out)
+ *  it stays aside and nothing is said. Groups the person deleted or removed
+ *  from their own view are not touched. */
+function recheckSetAside() {
+  if (!SYNC_ENABLED || LS.get("sl.recheck317", false)) return;
+  let n = 0;
+  S.groups.forEach(g => {
+    if (g.revoked && !g.deleted && !g.sample && !g.localOnly && !isHidden(g.id)) {
+      g.recheck = true; requeueGroup(g.id); n++;
+    }
+  });
+  if (n) localSave();
+  LS.set("sl.recheck317", true);
+}
+
+/** Queue a whole group to be sent again: the group, its members (they go with
+ *  it), every expense and every payment. The server keeps whichever copy of
+ *  each row is newer, so resending what it already has changes nothing. */
+function requeueGroup(gid) {
+  const d = dirtySet();
+  const add = (k, id) => { if (!d[k]) d[k] = []; if (d[k].indexOf(id) < 0) d[k].push(id); };
+  add("groups", gid);
+  S.expenses.forEach(e => { if (e.gid === gid) add("expenses", e.id); });
+  S.settlements.forEach(x => { if (x.gid === gid) add("settlements", x.id); });
+  LS.set("sl.dirty", d);
 }
 
 /** Remove only what this round actually sent.
@@ -4450,7 +4470,9 @@ async function syncNow(manual) {
   SYNC.running = true;
   SYNC.startedAt = Date.now();
   try {
+    SYNC.resend = [];
     const push = buildPush();
+    SYNC.pushed = new Set(push.groups.map(x => x.id));
     const wire = { groups: push.groups, members: push.members,
                    expenses: push.expenses, settlements: push.settlements,
                    hidden: push.hidden };
@@ -4479,6 +4501,14 @@ async function syncNow(manual) {
     const data = await api("/sync", { since: since, changes: wire, wait: holdFor },
       holdFor ? { register: c => { SYNC.ctl = c; } } : undefined);
     SYNC.ctl = null;
+    /* Only a real sync answer counts. A 200 with an empty or half-written body
+       (a proxy, a host still starting) used to be taken as success: the
+       pending list was cleared as if everything had been accepted, "Synced"
+       was shown, and the group never reached the server. */
+    if (!data || typeof data !== "object" || typeof data.seq !== "number" ||
+        ("group_ids" in data && !Array.isArray(data.group_ids))) {
+      throw new Error("The server sent an incomplete answer — will try again");
+    }
     SYNC.fullPull = false;
     SYNC.fails = 0;
     SYNC.note = null;
@@ -4488,12 +4518,24 @@ async function syncNow(manual) {
     // The first answer from the server after signing in: from here on an empty
     // list really means "no groups", not "haven't asked yet".
     if (LS.get("sl.awaitingFirstSync", false)) { LS.set("sl.awaitingFirstSync", false); render(); }
-    const stillDirty = clearPushed(push);
+    let stillDirty = clearPushed(push);
+    // A set-aside group sent for a recheck has had its answer: listed (and so
+    // back on screen, applyPull) or refused (and so still aside, silently).
+    S.groups.forEach(g => { if (g.recheck && SYNC.pushed.has(g.id)) delete g.recheck; });
+    // Groups the server did not list: queued only now, so this round's
+    // clean-up cannot clear them again (they may have been in this very push).
+    if (SYNC.resend.length) {
+      SYNC.resend.splice(0).forEach(requeueGroup);
+      const d = dirtySet();
+      stillDirty = d.groups.length + d.expenses.length + d.settlements.length + (d.hidden || []).length;
+    }
     if (stillDirty) scheduleSync(800);       // edits made during the request
     else if (SYNC.fullPull) scheduleSync(300);   // added (back) to a group: fetch its history
     localSave();
     if (refusal.message || SYNC.note) toast(refusal.message || SYNC.note);
-    setSyncState("ok");
+    // "Synced" only once nothing is waiting to go; otherwise the next round
+    // (already scheduled) is still to come.
+    setSyncState(stillDirty ? "busy" : "ok");
     if (changed) {
       const current = liveGroups().find(g => g.id === S.gid);
       // Land on a real group. Sitting on the built-in sample after a sync
@@ -4605,7 +4647,12 @@ async function signOut() {
   catch (e) { /* signing out locally matters more than telling the server */ }
   LS.set("sl.identity", null);
   LS.set("sl.syncSeq", 0);
-  LS.set("sl.dirty", { groups: [], expenses: [], settlements: [] });
+  /* The list of changes not sent yet is kept. It used to be wiped here, while
+     the groups themselves stayed on screen — so a group made offline, then a
+     sign-out and back in, was never sent, and the next sync took it for a
+     group we had been removed from. Signing back in with the same number
+     sends it; a different number goes through adoptCacheFor, which clears
+     the previous account's data, this list included. */
 }
 
 /* ---------- sign-in screen ---------- */
@@ -4907,7 +4954,15 @@ function openAccountModal() {
       confirmModal({
         title: "Sign out?",
         danger: true, confirmLabel: "Sign out",
-        message: "Groups that have synced stay on the server and come back when you sign in again. Anything that hasn't synced yet is still on this phone.",
+        message: (() => {
+          const d = dirtySet();
+          const n = (d.groups || []).length + (d.expenses || []).length + (d.settlements || []).length;
+          return "Groups that have synced stay on the server and come back when you sign in again." +
+            (n ? " <strong>" + n + " change" + (n === 1 ? " hasn't" : "s haven't") + " reached the server yet.</strong> " +
+                 "They stay on this phone and are sent when you sign in again with the same number — " +
+                 "signing in with a different number removes them from this phone."
+               : "");
+        })(),
         onConfirm: async () => { await signOut(); render(); showAuth(); }
       });
     }
